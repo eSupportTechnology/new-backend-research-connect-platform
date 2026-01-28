@@ -12,8 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('investors', function (Blueprint $table) {
-            $table->uuid()->primary();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->uuid('user_id')->primary();
+            $table->foreign('user_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('cascade');;
             $table->string('phone');
             $table->string('address')->nullable();
             $table->text('investment_preferences');

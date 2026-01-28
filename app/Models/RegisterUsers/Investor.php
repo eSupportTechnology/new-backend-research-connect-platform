@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 class Investor extends Model
 {
     use HasFactory; use Notifiable;
-
+    protected $primaryKey = 'user_id';
     protected $keyType = 'string';
     public $incrementing = false;
     protected $fillable = [
@@ -19,17 +19,7 @@ class Investor extends Model
         'address',
         'investment_preferences',
     ];
-    protected static function boot()
-    {
-        parent::boot();
 
-        // Automatically generate UUID
-        static::creating(function ($model) {
-            if (empty($model->{$model->getKeyName()})) {
-                $model->{$model->getKeyName()} = Str::uuid()->toString();
-            }
-        });
-    }
     protected $hidden = ['password'];
 
     // Relationships
