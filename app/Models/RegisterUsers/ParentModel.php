@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 class ParentModel extends Model
 {
     use HasFactory;
-
+    protected $primaryKey = 'user_id';
     protected $table = 'parents'; // Explicit table name
     protected $keyType = 'string';
     public $incrementing = false;

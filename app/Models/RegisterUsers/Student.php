@@ -10,11 +10,12 @@ class Student extends Model
 {
     use HasFactory;
 
-    protected $primaryKey = 'user_id';
+    protected $primaryKey = 'id';
     protected $keyType = 'string';
     public $incrementing = false;
 
     protected $fillable = [
+
         'user_id',
         'school_name',
         'grade_level',
@@ -22,6 +23,17 @@ class Student extends Model
     ];
 
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        // auto-generate UUID for 'id' if not provided
+        static::creating(function ($model) {
+            if (empty($model->id)) {
+                $model->id = (string) Str::uuid();
+            }
+        });
+    }
     public function user()
     {
         return $this->belongsTo(User::class);
