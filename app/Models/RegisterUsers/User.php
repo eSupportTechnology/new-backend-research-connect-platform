@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\RegisterUsers;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -17,10 +18,16 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+
+    protected $keyType = 'string'; // UUID
+    public $incrementing = false;
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
         'email',
         'password',
+        'role',
+        'user_type',
     ];
 
     /**
@@ -44,5 +51,27 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Automatically generate UUID
+        static::creating(function ($model) {
+            if (empty($model->{$model->getKeyName()})) {
+                $model->{$model->getKeyName()} = Str::uuid()->toString();
+            }
+        });
+    }
+
+    // Relationships
+    public function investor()
+    {
+        return $this->hasOne(Investor::class);
+    }
+
+    public function student()
+    {
+        return $this->hasOne(Student::class);
     }
 }
