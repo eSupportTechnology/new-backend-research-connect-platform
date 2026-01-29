@@ -2,7 +2,9 @@
 
 namespace App\Models\RegisterUsers;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Portfolio\Education;
+use App\Models\Portfolio\Experience;
+use App\Models\Portfolio\Profile;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -11,17 +13,17 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable , HasApiTokens;
+    use HasFactory, Notifiable, HasApiTokens;
 
     /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
+     * UUID configuration
      */
-
-    protected $keyType = 'string'; // UUID
+    protected $keyType = 'string';
     public $incrementing = false;
+
+    /**
+     * Mass assignable fields
+     */
     protected $fillable = [
         'first_name',
         'last_name',
@@ -32,9 +34,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
+     * Hidden fields
      */
     protected $hidden = [
         'password',
@@ -42,9 +42,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Casts
      */
     protected function casts(): array
     {
@@ -53,26 +51,72 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /**
+     * Model boot
+     */
     protected static function boot()
     {
         parent::boot();
 
-        // Automatically generate UUID
+        // 1️⃣ Generate UUID automatically
         static::creating(function ($model) {
             if (empty($model->{$model->getKeyName()})) {
                 $model->{$model->getKeyName()} = Str::uuid()->toString();
             }
         });
+
+        // 2️⃣ Auto-create profile AFTER user created
+        static::created(function ($user) {
+            // avoid duplicate profile creation
+            if (! $user->profile) {
+                $user->profile()->create([
+                    'user_id' => $user->id,
+                    'name' => $user->first_name . ' ' . $user->last_name,
+                ]);
+            }
+        });
     }
 
-    // Relationships
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
+    public function profile()
+    {
+        return $this->hasOne(Profile::class, 'user_id');
+    }
+
+    public function experiences()
+    {
+        return $this->hasMany(Experience::class, 'user_id');
+    }
+
+    public function educations()
+    {
+        return $this->hasMany(Education::class, 'user_id');
+    }
+
     public function investor()
     {
-        return $this->hasOne(Investor::class);
+        return $this->hasOne(Investor::class, 'user_id');
     }
 
     public function student()
     {
-        return $this->hasOne(Student::class);
+        return $this->hasOne(Student::class, 'user_id');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accessors
+    |--------------------------------------------------------------------------
+    */
+
+    public function getFullNameAttribute()
+    {
+        return $this->first_name . ' ' . $this->last_name;
     }
 }
