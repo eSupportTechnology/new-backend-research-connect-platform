@@ -13,6 +13,7 @@ return new class extends Migration
             $table->uuid('user_id');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->string('school');
+            $table->string('institute_logo')->nullable();
             $table->string('degree')->nullable();
             $table->string('field_of_study')->nullable();
             $table->string('grade')->nullable();

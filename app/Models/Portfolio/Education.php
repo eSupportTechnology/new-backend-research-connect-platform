@@ -2,7 +2,6 @@
 
 namespace App\Models\Portfolio;
 
-
 use App\Models\RegisterUsers;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +14,7 @@ class Education extends Model
     protected $fillable = [
         'user_id',
         'school',
+        'institute_logo',
         'degree',
         'field_of_study',
         'grade',
@@ -25,6 +25,14 @@ class Education extends Model
         'end_month',
         'end_year'
     ];
+
+    // Cast empty strings to null
+    protected $casts = [
+        'start_year' => 'integer',
+        'end_year' => 'integer',
+    ];
+
+
     // Relationships
     public function user()
     {
@@ -42,7 +50,6 @@ class Education extends Model
         return $this->start_month . ' ' . $this->start_year . ' - ' . $this->end_month . ' ' . $this->end_year;
     }
 
-
     public function getDegreeWithFieldAttribute()
     {
         $result = $this->degree ?? '';
@@ -50,5 +57,28 @@ class Education extends Model
             $result .= $result ? ' in ' . $this->field_of_study : $this->field_of_study;
         }
         return $result;
+    }
+
+    // Mutator to convert empty strings to null
+    public function setDegreeAttribute($value)
+    {
+        $this->attributes['degree'] = $value === '' || $value === null ? null : $value;
+    }
+
+    public function setFieldOfStudyAttribute($value)
+    {
+        $this->attributes['field_of_study'] = $value === '' || $value === null ? null : $value;
+    }
+
+    public function setDescriptionAttribute($value)
+    {
+        $this->attributes['description'] = $value === '' || $value === null ? null : $value;
+    }
+
+    public function getInstituteLogoUrlAttribute()
+    {
+        return $this->institute_logo
+            ? asset('storage/' . $this->institute_logo)
+            : null;
     }
 }

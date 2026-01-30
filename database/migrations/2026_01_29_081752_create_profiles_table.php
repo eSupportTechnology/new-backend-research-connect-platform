@@ -13,10 +13,7 @@ return new class extends Migration
             $table->uuid('user_id')->unique();
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->string('name');
-            $table->string('title')->nullable();
-            $table->string('headline')->nullable();
             $table->text('bio')->nullable();
-            $table->string('phone')->nullable();
             $table->string('profile_image')->nullable();
             $table->string('cover_image')->nullable();
             $table->json('skills')->nullable();
