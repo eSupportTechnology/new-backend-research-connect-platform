@@ -14,6 +14,7 @@ return new class extends Migration
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->string('title');
             $table->string('organization');
+            $table->string('company_logo')->nullable();
             $table->string('employment_type')->nullable();
             $table->boolean('is_currently_working')->default(false);
             $table->string('start_month', 20);

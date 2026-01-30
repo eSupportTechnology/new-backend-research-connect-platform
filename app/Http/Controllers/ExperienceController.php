@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use App\Models\Portfolio\Experience;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class ExperienceController extends Controller
@@ -26,6 +27,7 @@ class ExperienceController extends Controller
         ]);
     }
 
+
     /**
      * Store a new experience
      */
@@ -34,6 +36,7 @@ class ExperienceController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'organization' => 'required|string|max:255',
+            'company_logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'is_currently_working' => 'sometimes|boolean',
             'start_month' => 'required|string|max:20',
             'start_year' => 'required|integer|min:1900|max:' . date('Y'),
@@ -49,11 +52,16 @@ class ExperienceController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
-
+        $logoPath = null;
+        if ($request->hasFile('company_logo')) {
+            $logoPath = $request->file('company_logo')
+                ->store('company-logos', 'public');
+        }
         $experience = Experience::create([
             'user_id' => Auth::id(),
             'title' => $request->title,
             'organization' => $request->organization,
+            'company_logo' => $logoPath,
             'is_currently_working' => $request->is_currently_working ?? false,
             'start_month' => $request->start_month,
             'start_year' => $request->start_year,
@@ -81,6 +89,7 @@ class ExperienceController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
             'organization' => 'sometimes|string|max:255',
+            'company_logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'is_currently_working' => 'sometimes|boolean',
             'start_month' => 'sometimes|string|max:20',
             'start_year' => 'sometimes|integer|min:1900|max:' . date('Y'),
@@ -96,7 +105,16 @@ class ExperienceController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
+        // Handle logo upload
+        if ($request->hasFile('company_logo')) {
+            // Delete old logo
+            if ($experience->company_logo) {
+                Storage::disk('public')->delete($experience->company_logo);
+            }
 
+            $experience->company_logo = $request->file('company_logo')
+                ->store('company-logos', 'public');
+        }
         $experience->update([
             'title' => $request->title ?? $experience->title,
             'organization' => $request->organization ?? $experience->organization,
@@ -123,6 +141,11 @@ class ExperienceController extends Controller
         $experience = Experience::where('user_id', Auth::id())
             ->where('id', $id)
             ->firstOrFail();
+
+        // Delete logo from storage
+        if ($experience->company_logo) {
+            Storage::disk('public')->delete($experience->company_logo);
+        }
 
         $experience->delete();
 

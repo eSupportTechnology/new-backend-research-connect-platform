@@ -15,6 +15,7 @@ class Experience extends Model
         'user_id',
         'title',
         'organization',
+        'company_logo',
         'employment_type',
         'is_currently_working',
         'start_month',
@@ -28,7 +29,7 @@ class Experience extends Model
     protected $casts = [
         'is_currently_working' => 'boolean',
     ];
-
+    protected $appends = ['company_logo_url'];
     // Relationships
     public function user()
     {
@@ -47,5 +48,11 @@ class Experience extends Model
             return $this->start_month . ' ' . $this->start_year . ' - Present';
         }
         return $this->start_month . ' ' . $this->start_year . ' - ' . $this->end_month . ' ' . $this->end_year;
+    }
+    public function getCompanyLogoUrlAttribute()
+    {
+        return $this->company_logo
+            ? asset('storage/' . $this->company_logo)
+            : null;
     }
 }
