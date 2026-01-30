@@ -11,13 +11,11 @@ class Profile extends Model
     use HasFactory;
 
     protected $table = 'profile';
+
     protected $fillable = [
         'user_id',
         'name',
-        'title',
-        'headline',
         'bio',
-        'phone',
         'profile_image',
         'cover_image',
         'skills',
@@ -26,12 +24,6 @@ class Profile extends Model
         'innovation_count',
         'research_count',
         'system_level',
-        'website',
-        'location',
-        'github_url',
-        'linkedin_url',
-        'twitter_url',
-        'facebook_url'
     ];
 
     protected $casts = [
@@ -43,7 +35,8 @@ class Profile extends Model
         'system_level' => 'integer',
     ];
 
-    // Relationships
+    /* ================= Relationships ================= */
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -59,35 +52,19 @@ class Profile extends Model
         return $this->hasMany(Education::class, 'user_id', 'user_id');
     }
 
-    // Helper methods
+    /* ================= Accessors ================= */
+
     public function getProfileImageUrlAttribute()
     {
-        return $this->profile_image ? asset('storage/' . $this->profile_image) : null;
+        return $this->profile_image
+            ? asset('storage/' . $this->profile_image)
+            : null;
     }
 
     public function getCoverImageUrlAttribute()
     {
-        return $this->cover_image ? asset('storage/' . $this->cover_image) : null;
-    }
-
-    // Increment counters
-    public function incrementFollowerCount()
-    {
-        $this->increment('follower_count');
-    }
-
-    public function decrementFollowerCount()
-    {
-        $this->decrement('follower_count');
-    }
-
-    public function incrementInnovationCount()
-    {
-        $this->increment('innovation_count');
-    }
-
-    public function incrementResearchCount()
-    {
-        $this->increment('research_count');
+        return $this->cover_image
+            ? asset('storage/' . $this->cover_image)
+            : null;
     }
 }

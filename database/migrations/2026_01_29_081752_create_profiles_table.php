@@ -22,12 +22,6 @@ return new class extends Migration
             $table->integer('innovation_count')->default(0);
             $table->integer('research_count')->default(0);
             $table->integer('system_level')->default(1);
-            $table->string('website')->nullable();
-            $table->string('location')->nullable();
-            $table->string('github_url')->nullable();
-            $table->string('linkedin_url')->nullable();
-            $table->string('twitter_url')->nullable();
-            $table->string('facebook_url')->nullable();
             $table->timestamps();
 
             $table->index('user_id');

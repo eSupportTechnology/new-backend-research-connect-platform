@@ -27,6 +27,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [ProfileController::class, 'index']);
     Route::patch('/profile', [ProfileController::class, 'update']);
     Route::post('/profile/upload-image', [ProfileController::class, 'updateProfileImage']);
+    Route::post('/profile/upload-image', [ProfileController::class, 'updateCoverImage']);
+
 
     // Experience routes
     Route::apiResource('experiences', ExperienceController::class);
