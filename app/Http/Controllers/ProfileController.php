@@ -89,6 +89,7 @@ class ProfileController extends Controller
 
         $profile = Auth::user()->profile;
 
+        // Delete old profile image if exists
         if ($profile->profile_image && Storage::disk('public')->exists($profile->profile_image)) {
             Storage::disk('public')->delete($profile->profile_image);
         }
@@ -98,6 +99,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Profile image updated successfully',
             'profile_image_url' => asset('storage/' . $path)
         ]);
     }
@@ -113,6 +115,7 @@ class ProfileController extends Controller
 
         $profile = Auth::user()->profile;
 
+        // Delete old cover image if exists
         if ($profile->cover_image && Storage::disk('public')->exists($profile->cover_image)) {
             Storage::disk('public')->delete($profile->cover_image);
         }
@@ -122,6 +125,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Cover image updated successfully',
             'cover_image_url' => asset('storage/' . $path)
         ]);
     }

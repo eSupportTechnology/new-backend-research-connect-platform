@@ -36,7 +36,10 @@ class Profile extends Model
     ];
 
     /* ================= Relationships ================= */
-
+    protected $appends = [
+        'profile_image_url',
+        'cover_image_url',
+    ];
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
