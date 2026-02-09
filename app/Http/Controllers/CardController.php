@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Card;
 
 class CardController extends Controller
 {
@@ -24,7 +23,7 @@ class CardController extends Controller
 
         // If user wants this to be default, reset previous defaults
         if ($request->is_default) {
-            $request->user()->cards()->update(['is_default' => false]);
+            $request->user()->card()->update(['is_default' => false]);
         }
 
         $card = $request->user()->cards()->create([

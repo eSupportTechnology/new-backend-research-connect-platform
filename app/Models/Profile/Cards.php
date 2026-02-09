@@ -6,7 +6,7 @@ use App\Models\RegisterUsers\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Card extends Model
+class Cards extends Model
 {
     use HasFactory;
 
