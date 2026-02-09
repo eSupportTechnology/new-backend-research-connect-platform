@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/register/investor', [RegistrationController::class, 'registerInvestor']);
 Route::post('/register/generaluser', [RegistrationController::class, 'registerGeneralUser']);
 Route::post('/register/both', [RegistrationController::class, 'registerBoth']);
+Route::middleware('auth:sanctum')->post('/change-password', [AuthController::class, 'changePassword']);
 
 //Login
 Route::post('/login', [AuthController::class, 'login']);
@@ -25,7 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'index']);
-    Route::patch('/profile', [ProfileController::class, 'update']);
+    Route::put('/profile', [ProfileController::class, 'update']);
     Route::post('/profile/upload-profile-image', [ProfileController::class, 'updateProfileImage']);
     Route::post('/profile/upload-cover-image', [ProfileController::class, 'updateCoverImage']);
 
