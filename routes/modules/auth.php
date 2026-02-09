@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CardController;
 use App\Http\Controllers\EducationController;
 use App\Http\Controllers\ExperienceController;
 use App\Http\Controllers\ProfileController;
@@ -36,4 +37,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Education routes
     Route::apiResource('educations', EducationController::class);
+
+    //Card
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/cards', [CardController::class, 'index']);
+        Route::post('/cards', [CardController::class, 'store']);
+        Route::delete('/cards/{id}', [CardController::class, 'destroy']);
+        Route::post('/cards/{id}/default', [CardController::class, 'setDefault']);
+    });
+
 });
