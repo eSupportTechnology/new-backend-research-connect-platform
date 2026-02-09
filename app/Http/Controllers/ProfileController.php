@@ -43,7 +43,10 @@ class ProfileController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
-            'bio' => 'sometimes|string|max:2000',
+            'email' => 'sometimes|nullable|email|max:255',
+            'telephone' => 'sometimes|nullable|string|max:20',
+            'dob' => 'sometimes|nullable|date',
+            'bio' => 'sometimes|nullable|string|max:2000',
             'skills' => 'sometimes|array',
             'skills.*' => 'string',
         ]);
@@ -67,8 +70,11 @@ class ProfileController extends Controller
 
         $profile->update($request->only([
             'name',
+            'email',
+            'telephone',
+            'dob',
             'bio',
-            'skills'
+            'skills',
         ]));
 
         return response()->json([
