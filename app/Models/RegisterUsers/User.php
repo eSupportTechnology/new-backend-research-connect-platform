@@ -5,6 +5,7 @@ namespace App\Models\RegisterUsers;
 use App\Models\Portfolio\Education;
 use App\Models\Portfolio\Experience;
 use App\Models\Portfolio\Profile;
+use App\Models\Profile\Cards;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -107,6 +108,10 @@ class User extends Authenticatable
     public function student()
     {
         return $this->hasOne(Student::class, 'user_id');
+    }
+    public function cards()
+    {
+        return $this->hasMany(Cards::class, 'user_id');
     }
 
     /*

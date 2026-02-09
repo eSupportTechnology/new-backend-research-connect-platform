@@ -15,6 +15,9 @@ class Profile extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'email',
+        'telephone',
+        'dob',
         'bio',
         'profile_image',
         'cover_image',
@@ -25,6 +28,7 @@ class Profile extends Model
         'research_count',
         'system_level',
     ];
+
 
     protected $casts = [
         'skills' => 'array',
