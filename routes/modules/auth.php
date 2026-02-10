@@ -6,6 +6,7 @@ use App\Http\Controllers\EducationController;
 use App\Http\Controllers\ExperienceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
+use App\Http\Controllers\ShippingAddressController;
 use Illuminate\Support\Facades\Route;
 
 //Register
@@ -46,4 +47,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/cards/{id}/default', [CardController::class, 'setDefault']);
     });
 
+    //Shipping Address
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::apiResource('shipping-addresses', ShippingAddressController::class);
+        Route::post('/shipping-addresses/{id}/set-default', [ShippingAddressController::class, 'setDefault']);
+        Route::get('/shipping-addresses/default', [ShippingAddressController::class, 'getDefault']);
+    });
 });
