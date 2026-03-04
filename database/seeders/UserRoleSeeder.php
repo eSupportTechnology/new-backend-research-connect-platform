@@ -25,32 +25,6 @@ class UserRoleSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
-
-            // Admin
-            [
-                'id' => Str::uuid(),
-                'first_name' => 'System',
-                'last_name' => 'Admin',
-                'email' => 'admin@example.com',
-                'password' => Hash::make('password123'),
-                'role' => 'admin',
-                'user_type' => 'internal',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-
-            // Manager
-            [
-                'id' => Str::uuid(),
-                'first_name' => 'Project',
-                'last_name' => 'Manager',
-                'email' => 'manager@example.com',
-                'password' => Hash::make('password123'),
-                'role' => 'manager',
-                'user_type' => 'internal',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
         ]);
     }
 }
