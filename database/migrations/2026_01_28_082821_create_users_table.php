@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('password');
             $table->string('role');
             $table->string('user_type')->nullable();
+            $table->string('status')->default('Active');
             $table->timestamps();
         });
     }
