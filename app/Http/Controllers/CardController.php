@@ -23,7 +23,8 @@ class CardController extends Controller
 
         // If user wants this to be default, reset previous defaults
         if ($request->is_default) {
-            $request->user()->card()->update(['is_default' => false]);
+            // FIX: Changed from card() to cards()
+            $request->user()->cards()->update(['is_default' => false]);
         }
 
         $card = $request->user()->cards()->create([
@@ -46,6 +47,7 @@ class CardController extends Controller
 
     // Set default card
     public function setDefault(Request $request, $id) {
+        // FIX: Changed from cards() to cards() - this one was already correct
         $request->user()->cards()->update(['is_default' => false]);
         $card = $request->user()->cards()->findOrFail($id);
         $card->is_default = true;
