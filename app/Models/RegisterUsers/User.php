@@ -2,6 +2,7 @@
 
 namespace App\Models\RegisterUsers;
 
+use App\Models\Innovation\Innovation;
 use App\Models\Portfolio\Education;
 use App\Models\Portfolio\Experience;
 use App\Models\Portfolio\Profile;
@@ -114,7 +115,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Cards::class, 'user_id');
     }
-
+    public function innovations()
+    {
+        return $this->hasMany(Innovation::class);
+    }
     /*
     |--------------------------------------------------------------------------
     | Accessors
