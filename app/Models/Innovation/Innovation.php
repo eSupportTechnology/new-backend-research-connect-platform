@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class Innovation extends Model
 {
-    use HasUuids ;
     protected $fillable = [
         'user_id',
         'title',
