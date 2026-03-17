@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\EducationController;
 use App\Http\Controllers\ExperienceController;
+use App\Http\Controllers\PortfolioCommonController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ShippingAddressController;
@@ -53,4 +54,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/shipping-addresses/{id}/set-default', [ShippingAddressController::class, 'setDefault']);
         Route::get('/shipping-addresses/default', [ShippingAddressController::class, 'getDefault']);
     });
+
+    //Common Details for public view portfolio
+    Route::middleware('auth:sanctum')->get('/portfolio', [PortfolioCommonController::class, 'getUserPublicView']);
+    Route::get('/portfolio/{userId}', [PortfolioCommonController::class, 'getUserPublicView']);
 });
