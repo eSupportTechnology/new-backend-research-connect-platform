@@ -5,6 +5,7 @@ namespace App\Models\Portfolio;
 use App\Models\RegisterUsers\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Profile extends Model
 {
@@ -29,7 +30,6 @@ class Profile extends Model
         'system_level',
     ];
 
-
     protected $casts = [
         'skills' => 'array',
         'follower_count' => 'integer',
@@ -44,6 +44,7 @@ class Profile extends Model
         'profile_image_url',
         'cover_image_url',
     ];
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -61,17 +62,45 @@ class Profile extends Model
 
     /* ================= Accessors ================= */
 
-    public function getProfileImageUrlAttribute()
+    public function getProfileImageUrlAttribute(): ?string
     {
-        return $this->profile_image
-            ? asset('storage/' . $this->profile_image)
-            : null;
+        if (!$this->profile_image) return null;
+
+        $cleaned = trim($this->profile_image);
+        if (strlen($cleaned) === 0) return null;
+
+        try {
+            // Use S3 for profile images
+            return Storage::disk('s3')->url($cleaned);
+        } catch (\Exception $e) {
+            \Log::warning('S3 URL failed for profile_image', [
+                'path' => $cleaned,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Fallback to local storage if S3 fails
+            return asset('storage/' . $cleaned);
+        }
     }
 
-    public function getCoverImageUrlAttribute()
+    public function getCoverImageUrlAttribute(): ?string
     {
-        return $this->cover_image
-            ? asset('storage/' . $this->cover_image)
-            : null;
+        if (!$this->cover_image) return null;
+
+        $cleaned = trim($this->cover_image);
+        if (strlen($cleaned) === 0) return null;
+
+        try {
+            // Use S3 for cover images
+            return Storage::disk('s3')->url($cleaned);
+        } catch (\Exception $e) {
+            \Log::warning('S3 URL failed for cover_image', [
+                'path' => $cleaned,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Fallback to local storage if S3 fails
+            return asset('storage/' . $cleaned);
+        }
     }
 }
