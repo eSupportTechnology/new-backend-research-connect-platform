@@ -81,7 +81,7 @@ class UploadController extends Controller
 
             // Create research record
             $research = Research::create([
-                'user_id' => auth()->id() ?? 'ec2da9db-9054-468a-9d55-d1d0adfc0f9e', // Default test user or authenticated user
+                'user_id' => auth()->id() ,
                 'document_url' => $uploadedFiles['document'],
                 'thumbnail' => $uploadedFiles['thumbnail'] ?? null,
                 'title' => $request->title,
@@ -138,11 +138,6 @@ class UploadController extends Controller
      */
     public function uploadInnovation(Request $request)
     {
-        Log::info('Upload Innovation Started', [
-            'has_document' => $request->hasFile('document'),
-            'has_thumbnail' => $request->hasFile('thumbnail'),
-            'user_id' => auth()->id()
-        ]);
 
         $validator = Validator::make($request->all(), [
             'document' => 'required|file|mimes:mp4,avi,mov,webm,mkv|max:512000', // 500MB max
@@ -201,7 +196,7 @@ class UploadController extends Controller
 
             // Create innovation record
             $innovation = Innovation::create([
-                'user_id' => auth()->id() ?? 'ec2da9db-9054-468a-9d55-d1d0adfc0f9e', // Default test user or authenticated user
+                'user_id' => auth()->id() ,
                 'video_url' => $uploadedFiles['video'],
                 'thumbnail' => $uploadedFiles['thumbnail'] ?? null,
                 'title' => $request->title,
@@ -307,7 +302,7 @@ class UploadController extends Controller
      */
     public function getInnovations(Request $request)
     {
-        $query = Innovation::query();
+        $query = Innovation::with('userProfile'); // ✅ ADD THIS
 
         // Apply filters
         if ($request->has('category')) {

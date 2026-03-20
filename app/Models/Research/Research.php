@@ -217,6 +217,7 @@ class Research extends Model
         return $this->belongsTo(User::class);
     }
 
+
     /**
      * Boot the model.
      */

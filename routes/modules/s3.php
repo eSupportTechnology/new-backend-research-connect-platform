@@ -4,7 +4,7 @@ use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::prefix('upload')->group(function () {
+Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
     Route::post('/research', [UploadController::class, 'uploadResearch']);
     Route::post('/innovation', [UploadController::class, 'uploadInnovation']);
     Route::post('/presigned-url', [UploadController::class, 'getPresignedUrl']);

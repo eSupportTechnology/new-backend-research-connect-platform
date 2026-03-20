@@ -2,6 +2,7 @@
 
 namespace App\Models\Innovation;
 
+use App\Models\Portfolio\Profile;
 use App\Models\RegisterUsers\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -146,6 +147,10 @@ class Innovation extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+    public function userProfile()
+    {
+        return $this->belongsTo(Profile::class, 'user_id', 'user_id');
     }
 
     /**
