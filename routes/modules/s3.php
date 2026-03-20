@@ -3,7 +3,7 @@
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
-// Temporarily remove auth:sanctum for testing
+
 Route::prefix('upload')->group(function () {
     Route::post('/research', [UploadController::class, 'uploadResearch']);
     Route::post('/innovation', [UploadController::class, 'uploadInnovation']);
