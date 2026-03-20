@@ -10,6 +10,41 @@ use Illuminate\Support\Facades\Validator;
 class ProfileController extends Controller
 {
     /**
+     * Helper: safely get S3 URL or null
+     */
+    private function getS3Url(?string $path): ?string
+    {
+        if ($path === null) return null;
+        $cleaned = trim($path);
+        if (strlen($cleaned) === 0) return null;
+
+        try {
+            return Storage::disk('s3')->url($cleaned);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Helper: safely delete from S3
+     */
+    private function deleteFromS3(?string $path): void
+    {
+        if ($path === null) return;
+        $cleaned = trim($path);
+        if (strlen($cleaned) === 0) return;
+
+        try {
+            if (Storage::disk('s3')->exists($cleaned)) {
+                Storage::disk('s3')->delete($cleaned);
+            }
+        } catch (\Exception $e) {
+            // Log but don't throw — old file cleanup is non-critical
+            \Log::warning('S3 delete failed', ['path' => $cleaned, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * Get logged-in user profile
      */
     public function index()
@@ -25,13 +60,17 @@ class ProfileController extends Controller
             ], 404);
         }
 
+        $profileData                    = $profile->toArray();
+        $profileData['profile_image_url'] = $this->getS3Url($profile->profile_image);
+        $profileData['cover_image_url']   = $this->getS3Url($profile->cover_image);
+
         return response()->json([
             'success' => true,
-            'data' => [
-                'user' => $user,
-                'profile' => $profile,
+            'data'    => [
+                'user'        => $user,
+                'profile'     => $profileData,
                 'experiences' => $profile->experiences,
-                'educations' => $profile->educations,
+                'educations'  => $profile->educations,
             ]
         ]);
     }
@@ -42,20 +81,20 @@ class ProfileController extends Controller
     public function update(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|nullable|email|max:255',
+            'name'      => 'sometimes|string|max:255',
+            'email'     => 'sometimes|nullable|email|max:255',
             'telephone' => 'sometimes|nullable|string|max:20',
-            'dob' => 'sometimes|nullable|date',
-            'bio' => 'sometimes|nullable|string|max:2000',
-            'skills' => 'sometimes|array',
-            'skills.*' => 'string',
+            'dob'       => 'sometimes|nullable|date',
+            'bio'       => 'sometimes|nullable|string|max:2000',
+            'skills'    => 'sometimes|array',
+            'skills.*'  => 'string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors' => $validator->errors()
+                'errors'  => $validator->errors()
             ], 422);
         }
 
@@ -69,23 +108,22 @@ class ProfileController extends Controller
         }
 
         $profile->update($request->only([
-            'name',
-            'email',
-            'telephone',
-            'dob',
-            'bio',
-            'skills',
+            'name', 'email', 'telephone', 'dob', 'bio', 'skills',
         ]));
+
+        $fresh                        = $profile->fresh()->toArray();
+        $fresh['profile_image_url']   = $this->getS3Url($profile->fresh()->profile_image);
+        $fresh['cover_image_url']     = $this->getS3Url($profile->fresh()->cover_image);
 
         return response()->json([
             'success' => true,
             'message' => 'Profile updated successfully',
-            'data' => $profile->fresh()
+            'data'    => $fresh
         ]);
     }
 
     /**
-     * Update profile image
+     * Update profile image — uploads to S3
      */
     public function updateProfileImage(Request $request)
     {
@@ -95,24 +133,28 @@ class ProfileController extends Controller
 
         $profile = Auth::user()->profile;
 
-        // Delete old profile image if exists
-        if ($profile->profile_image && Storage::disk('public')->exists($profile->profile_image)) {
-            Storage::disk('public')->delete($profile->profile_image);
+        if (!$profile) {
+            return response()->json(['success' => false, 'message' => 'Profile not found'], 404);
         }
 
-        $path = $request->file('profile_image')->store('profiles', 'public');
+        $this->deleteFromS3($profile->profile_image);
+
+        // ✅ No visibility/ACL
+        $path = Storage::disk('s3')->putFile('profiles', $request->file('profile_image'));
+
+        if (!$path) {
+            return response()->json(['success' => false, 'message' => 'Failed to upload image to S3'], 500);
+        }
+
         $profile->update(['profile_image' => $path]);
 
         return response()->json([
-            'success' => true,
-            'message' => 'Profile image updated successfully',
-            'profile_image_url' => asset('storage/' . $path)
+            'success'           => true,
+            'message'           => 'Profile image updated successfully',
+            'profile_image_url' => $this->getS3Url($path),
         ]);
     }
 
-    /**
-     * Update cover image
-     */
     public function updateCoverImage(Request $request)
     {
         $request->validate([
@@ -121,18 +163,25 @@ class ProfileController extends Controller
 
         $profile = Auth::user()->profile;
 
-        // Delete old cover image if exists
-        if ($profile->cover_image && Storage::disk('public')->exists($profile->cover_image)) {
-            Storage::disk('public')->delete($profile->cover_image);
+        if (!$profile) {
+            return response()->json(['success' => false, 'message' => 'Profile not found'], 404);
         }
 
-        $path = $request->file('cover_image')->store('covers', 'public');
+        $this->deleteFromS3($profile->cover_image);
+
+        // ✅ No visibility/ACL
+        $path = Storage::disk('s3')->putFile('covers', $request->file('cover_image'));
+
+        if (!$path) {
+            return response()->json(['success' => false, 'message' => 'Failed to upload cover image to S3'], 500);
+        }
+
         $profile->update(['cover_image' => $path]);
 
         return response()->json([
-            'success' => true,
-            'message' => 'Cover image updated successfully',
-            'cover_image_url' => asset('storage/' . $path)
+            'success'         => true,
+            'message'         => 'Cover image updated successfully',
+            'cover_image_url' => $this->getS3Url($path),
         ]);
     }
 
@@ -143,14 +192,21 @@ class ProfileController extends Controller
     {
         $profile = Auth::user()->profile;
 
+        if (!$profile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Profile not found'
+            ], 404);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => [
-                'follower_count' => $profile->follower_count,
-                'following_count' => $profile->following_count,
+            'data'    => [
+                'follower_count'   => $profile->follower_count,
+                'following_count'  => $profile->following_count,
                 'innovation_count' => $profile->innovation_count,
-                'research_count' => $profile->research_count,
-                'system_level' => $profile->system_level,
+                'research_count'   => $profile->research_count,
+                'system_level'     => $profile->system_level,
             ]
         ]);
     }

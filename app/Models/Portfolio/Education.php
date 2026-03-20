@@ -5,6 +5,7 @@ namespace App\Models\Portfolio;
 use App\Models\RegisterUsers;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Education extends Model
 {
@@ -26,12 +27,12 @@ class Education extends Model
         'end_year'
     ];
 
-    // Cast empty strings to null
     protected $casts = [
         'start_year' => 'integer',
-        'end_year' => 'integer',
+        'end_year'   => 'integer',
     ];
 
+    protected $appends = ['institute_logo_url'];  // ✅ Added so it appears in API responses
 
     // Relationships
     public function user()
@@ -59,7 +60,7 @@ class Education extends Model
         return $result;
     }
 
-    // Mutator to convert empty strings to null
+    // Mutators
     public function setDegreeAttribute($value)
     {
         $this->attributes['degree'] = $value === '' || $value === null ? null : $value;
@@ -75,10 +76,22 @@ class Education extends Model
         $this->attributes['description'] = $value === '' || $value === null ? null : $value;
     }
 
-    public function getInstituteLogoUrlAttribute()
+    // ✅ Changed from local storage to S3
+    public function getInstituteLogoUrlAttribute(): ?string
     {
-        return $this->institute_logo
-            ? asset('storage/' . $this->institute_logo)
-            : null;
+        if (!$this->institute_logo) return null;
+
+        $cleaned = trim($this->institute_logo);
+        if (strlen($cleaned) === 0) return null;
+
+        try {
+            return Storage::disk('s3')->url($cleaned);
+        } catch (\Exception $e) {
+            \Log::warning('S3 URL failed for institute_logo', [
+                'path'  => $cleaned,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models\Portfolio;
 use App\Models\RegisterUsers\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Experience extends Model
 {
@@ -29,7 +30,9 @@ class Experience extends Model
     protected $casts = [
         'is_currently_working' => 'boolean',
     ];
+
     protected $appends = ['company_logo_url'];
+
     // Relationships
     public function user()
     {
@@ -49,10 +52,23 @@ class Experience extends Model
         }
         return $this->start_month . ' ' . $this->start_year . ' - ' . $this->end_month . ' ' . $this->end_year;
     }
-    public function getCompanyLogoUrlAttribute()
+
+    // ✅ Changed from local storage to S3
+    public function getCompanyLogoUrlAttribute(): ?string
     {
-        return $this->company_logo
-            ? asset('storage/' . $this->company_logo)
-            : null;
+        if (!$this->company_logo) return null;
+
+        $cleaned = trim($this->company_logo);
+        if (strlen($cleaned) === 0) return null;
+
+        try {
+            return Storage::disk('s3')->url($cleaned);
+        } catch (\Exception $e) {
+            \Log::warning('S3 URL failed for company_logo', [
+                'path'  => $cleaned,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 }
