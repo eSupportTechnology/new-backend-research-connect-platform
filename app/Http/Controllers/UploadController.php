@@ -333,7 +333,25 @@ class UploadController extends Controller
             'data' => $innovations
         ]);
     }
+    public function getInnovationDetails($id)
+    {
+        try {
+            $innovation = Innovation::with('userProfile')->findOrFail($id);
 
+            // Optional: Increment views (if you want to track views like Research)
+            // $innovation->increment('views');
+
+            return response()->json([
+                'success' => true,
+                'data' => $innovation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Innovation not found'
+            ], 404);
+        }
+    }
     /**
      * Get single research
      */

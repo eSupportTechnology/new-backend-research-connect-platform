@@ -10,6 +10,8 @@ Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
     Route::post('/presigned-url', [UploadController::class, 'getPresignedUrl']);
     Route::delete('/file', [UploadController::class, 'deleteFile']);
 });
+// Get single innovation details
+Route::get('/innovations/{id}', [UploadController::class, 'getInnovationDetails']);
 
 Route::prefix('research')->group(function () {
     Route::get('/', [UploadController::class, 'getResearches']);
