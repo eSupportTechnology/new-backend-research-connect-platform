@@ -2,6 +2,7 @@
 
 namespace App\Models\Research;
 
+use App\Models\Portfolio\Profile;
 use App\Models\RegisterUsers\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -216,7 +217,10 @@ class Research extends Model
     {
         return $this->belongsTo(User::class);
     }
-
+    public function userProfile()
+    {
+        return $this->belongsTo(Profile::class, 'user_id', 'user_id');
+    }
 
     /**
      * Boot the model.

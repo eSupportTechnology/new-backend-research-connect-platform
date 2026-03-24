@@ -250,17 +250,23 @@ class UploadController extends Controller
      */
     public function getResearches(Request $request)
     {
-        $query = Research::query();
+        $query = Research::with('userProfile');
 
         // Apply filters
         if ($request->has('category')) {
             $query->category($request->category);
         }
 
+        // ❌ REMOVE approved-only logic
+        // if ($request->has('status')) {
+        //     $query->where('status', $request->status);
+        // } else {
+        //     $query->approved();
+        // }
+
+        // ✅ OPTIONAL: if status is provided, filter it
         if ($request->has('status')) {
             $query->where('status', $request->status);
-        } else {
-            $query->approved(); // Default to approved only
         }
 
         if ($request->has('search')) {
@@ -333,6 +339,33 @@ class UploadController extends Controller
             'data' => $innovations
         ]);
     }
+
+    /**
+     * Get single research with details
+     */
+    public function getResearchDetails($id)
+    {
+        try {
+            $research = Research::with('userProfile')->findOrFail($id);
+
+            // Optional: Increment views (same as getResearch)
+            $research->incrementViews();
+
+            return response()->json([
+                'success' => true,
+                'data' => $research
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Research not found'
+            ], 404);
+        }
+    }
+
+    /**
+     * Get single innovation with details
+     */
     public function getInnovationDetails($id)
     {
         try {
@@ -352,6 +385,7 @@ class UploadController extends Controller
             ], 404);
         }
     }
+
     /**
      * Get single research
      */
