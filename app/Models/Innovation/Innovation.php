@@ -152,7 +152,14 @@ class Innovation extends Model
     {
         return $this->belongsTo(Profile::class, 'user_id', 'user_id');
     }
-
+    public function views()
+    {
+        return $this->hasMany(InnovationViews::class);
+    }
+    public function getViewCountAttribute()
+    {
+        return $this->views()->count();
+    }
     /**
      * Boot the model.
      */

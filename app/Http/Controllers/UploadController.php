@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Innovation\InnovationViews;
 use App\Models\Research\Research;
 use App\Models\Innovation\Innovation;
 use Illuminate\Http\Request;
@@ -371,8 +372,18 @@ class UploadController extends Controller
         try {
             $innovation = Innovation::with('userProfile')->findOrFail($id);
 
-            // Optional: Increment views (if you want to track views like Research)
-            // $innovation->increment('views');
+            // Only create view if user hasn't viewed this innovation before
+            $existingView = InnovationViews::where('innovation_id', $innovation->id)
+                ->where('user_id', auth()->id())
+                ->first();
+
+            if (!$existingView) {
+                InnovationViews::create([
+                    'innovation_id' => $innovation->id,
+                    'user_id' => auth()->id(),
+                    'ip_address' => request()->ip(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
