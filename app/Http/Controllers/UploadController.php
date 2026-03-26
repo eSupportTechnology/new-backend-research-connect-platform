@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\InnovationResource;
 use App\Models\Innovation\InnovationViews;
 use App\Models\Research\Research;
 use App\Models\Innovation\Innovation;
@@ -340,7 +341,26 @@ class UploadController extends Controller
             'data' => $innovations
         ]);
     }
+    public function getTopViewedInnovations(Request $request)
+    {
+        try {
+            $topInnovations = Innovation::with('userProfile')
+                ->withCount('innovationViews')
+                ->orderBy('innovation_views_count', 'desc')
+                ->take(5)
+                ->get();
 
+            return response()->json([
+                'success' => true,
+                'data' => InnovationResource::collection($topInnovations)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch top innovations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get single research with details
      */

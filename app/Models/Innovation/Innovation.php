@@ -156,6 +156,10 @@ class Innovation extends Model
     {
         return $this->hasMany(InnovationViews::class);
     }
+    public function innovationViews()
+    {
+        return $this->hasMany(InnovationViews::class, 'innovation_id');
+    }
     public function getViewCountAttribute()
     {
         return $this->views()->count();
