@@ -310,7 +310,8 @@ class UploadController extends Controller
      */
     public function getInnovations(Request $request)
     {
-        $query = Innovation::with('userProfile'); // ✅ ADD THIS
+        $query = Innovation::with('userProfile')
+            ->withCount('innovationViews');
 
         // Apply filters
         if ($request->has('category')) {
@@ -331,10 +332,9 @@ class UploadController extends Controller
 
         // Sorting
         $query->latest();
+        $query->latest();
 
-        // Pagination
-        $perPage = $request->get('per_page', 15);
-        $innovations = $query->paginate($perPage);
+        $innovations = $query->paginate(15);
 
         return response()->json([
             'success' => true,
