@@ -371,17 +371,30 @@ class UploadController extends Controller
         try {
             $research = Research::with('userProfile')->findOrFail($id);
 
-            // Only create view if user hasn't viewed this research before
+            $userId = auth()->id();
+            $ip = request()->ip();
+
+            // 🔥 Check existing view properly
             $existingView = ResearchViews::where('research_id', $research->id)
-                ->where('user_id', auth()->id())
+                ->where(function ($query) use ($userId, $ip) {
+                    if ($userId) {
+                        $query->where('user_id', $userId);
+                    } else {
+                        $query->where('ip_address', $ip);
+                    }
+                })
                 ->first();
 
+            // ✅ Insert if not exists
             if (!$existingView) {
                 ResearchViews::create([
                     'research_id' => $research->id,
-                    'user_id' => auth()->id(),
-                    'ip_address' => request()->ip(),
+                    'user_id' => $userId,
+                    'ip_address' => $ip,
                 ]);
+
+                // ✅ increment views
+                $research->increment('views');
             }
 
             return response()->json([

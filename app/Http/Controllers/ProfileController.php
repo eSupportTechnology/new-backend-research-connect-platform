@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\RegisterUsers\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -74,7 +75,52 @@ class ProfileController extends Controller
             ]
         ]);
     }
+    public function getPublicProfile(string $userId)
+    {
+        try {
+            // Find the user by UUID
+            $user = User::findOrFail($userId);
 
+            $profile = $user->profile()->with(['experiences', 'educations'])->first();
+
+            if (!$profile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Profile not found for this user'
+                ], 404);
+            }
+
+            $profileData                      = $profile->toArray();
+            $profileData['profile_image_url'] = $this->getS3Url($profile->profile_image);
+            $profileData['cover_image_url']   = $this->getS3Url($profile->cover_image);
+
+            // Attach experiences/educations directly into profileData
+            // so it matches the shape your frontend already uses
+            $profileData['experiences'] = $profile->experiences;
+            $profileData['educations']  = $profile->educations;
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'user'        => $user,
+                    'profile'     => $profileData,
+                    'experiences' => $profile->experiences,
+                    'educations'  => $profile->educations,
+                ]
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load profile: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Update profile basic data
      */

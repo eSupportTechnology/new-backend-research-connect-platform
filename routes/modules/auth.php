@@ -32,7 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::post('/profile/upload-profile-image', [ProfileController::class, 'updateProfileImage']);
     Route::post('/profile/upload-cover-image', [ProfileController::class, 'updateCoverImage']);
-
+    Route::get('/profile/{userId}', [ProfileController::class, 'getPublicProfile']);
 
     // Experience routes
     Route::apiResource('experiences', ExperienceController::class);
