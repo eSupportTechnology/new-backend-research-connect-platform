@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\InnovationResource;
 use App\Models\Innovation\InnovationViews;
 use App\Models\Research\Research;
 use App\Models\Innovation\Innovation;
+use App\Models\Research\ResearchViews;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -251,7 +253,8 @@ class UploadController extends Controller
      */
     public function getResearches(Request $request)
     {
-        $query = Research::with('userProfile');
+        $query = Research::with('userProfile')->with('researchViews');
+
 
         // Apply filters
         if ($request->has('category')) {
@@ -309,7 +312,8 @@ class UploadController extends Controller
      */
     public function getInnovations(Request $request)
     {
-        $query = Innovation::with('userProfile'); // ✅ ADD THIS
+        $query = Innovation::with('userProfile')
+            ->withCount('innovationViews');
 
         // Apply filters
         if ($request->has('category')) {
@@ -330,17 +334,35 @@ class UploadController extends Controller
 
         // Sorting
         $query->latest();
+        $query->latest();
 
-        // Pagination
-        $perPage = $request->get('per_page', 15);
-        $innovations = $query->paginate($perPage);
+        $innovations = $query->paginate(15);
 
         return response()->json([
             'success' => true,
             'data' => $innovations
         ]);
     }
+    public function getTopViewedInnovations(Request $request)
+    {
+        try {
+            $topInnovations = Innovation::with('userProfile')
+                ->withCount('innovationViews')
+                ->orderBy('innovation_views_count', 'desc')
+                ->take(5)
+                ->get();
 
+            return response()->json([
+                'success' => true,
+                'data' => InnovationResource::collection($topInnovations)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch top innovations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get single research with details
      */
@@ -349,13 +371,37 @@ class UploadController extends Controller
         try {
             $research = Research::with('userProfile')->findOrFail($id);
 
-            // Optional: Increment views (same as getResearch)
-            $research->incrementViews();
+            $userId = auth()->id();
+            $ip = request()->ip();
+
+            // 🔥 Check existing view properly
+            $existingView = ResearchViews::where('research_id', $research->id)
+                ->where(function ($query) use ($userId, $ip) {
+                    if ($userId) {
+                        $query->where('user_id', $userId);
+                    } else {
+                        $query->where('ip_address', $ip);
+                    }
+                })
+                ->first();
+
+            // ✅ Insert if not exists
+            if (!$existingView) {
+                ResearchViews::create([
+                    'research_id' => $research->id,
+                    'user_id' => $userId,
+                    'ip_address' => $ip,
+                ]);
+
+                // ✅ increment views
+                $research->increment('views');
+            }
 
             return response()->json([
                 'success' => true,
                 'data' => $research
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -403,7 +449,8 @@ class UploadController extends Controller
     public function getResearch($id)
     {
         try {
-            $research = Research::findOrFail($id);
+            // Add eager loading for userProfile relationship
+            $research = Research::with('userProfile')->findOrFail($id);
 
             // Increment views
             $research->incrementViews();
@@ -419,7 +466,52 @@ class UploadController extends Controller
             ], 404);
         }
     }
+    public function getMyResearches(Request $request)
+    {
+        try {
+            $userId = auth()->id();
 
+            $researches = Research::where('user_id', $userId)
+                ->withCount('researchViews')
+                ->latest()
+                ->paginate(10);
+
+            return response()->json([
+                'success' => true,
+                'data' => $researches
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch your research: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get innovations uploaded by the authenticated user
+     */
+    public function getMyInnovations(Request $request)
+    {
+        try {
+            $userId = auth()->id();
+
+            $innovations = Innovation::where('user_id', $userId)
+                ->withCount('innovationViews')
+                ->latest()
+                ->paginate(10);
+
+            return response()->json([
+                'success' => true,
+                'data' => $innovations
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch your innovations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get single innovation
      */
