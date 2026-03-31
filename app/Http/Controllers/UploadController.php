@@ -6,6 +6,7 @@ use App\Http\Resources\InnovationResource;
 use App\Models\Innovation\InnovationViews;
 use App\Models\Research\Research;
 use App\Models\Innovation\Innovation;
+use App\Models\Research\ResearchViews;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -252,7 +253,8 @@ class UploadController extends Controller
      */
     public function getResearches(Request $request)
     {
-        $query = Research::with('userProfile');
+        $query = Research::with('userProfile')->with('researchViews');
+
 
         // Apply filters
         if ($request->has('category')) {
@@ -369,13 +371,24 @@ class UploadController extends Controller
         try {
             $research = Research::with('userProfile')->findOrFail($id);
 
-            // Optional: Increment views (same as getResearch)
-            $research->incrementViews();
+            // Only create view if user hasn't viewed this research before
+            $existingView = ResearchViews::where('research_id', $research->id)
+                ->where('user_id', auth()->id())
+                ->first();
+
+            if (!$existingView) {
+                ResearchViews::create([
+                    'research_id' => $research->id,
+                    'user_id' => auth()->id(),
+                    'ip_address' => request()->ip(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
                 'data' => $research
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -423,7 +436,8 @@ class UploadController extends Controller
     public function getResearch($id)
     {
         try {
-            $research = Research::findOrFail($id);
+            // Add eager loading for userProfile relationship
+            $research = Research::with('userProfile')->findOrFail($id);
 
             // Increment views
             $research->incrementViews();

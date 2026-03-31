@@ -2,6 +2,7 @@
 
 namespace App\Models\Research;
 
+use App\Models\Innovation\InnovationViews;
 use App\Models\Portfolio\Profile;
 use App\Models\RegisterUsers\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -199,7 +200,10 @@ class Research extends Model
     {
         $this->increment('views');
     }
-
+    public function researchViews()
+    {
+        return $this->hasMany(ResearchViews::class, 'research_id');
+    }
     /**
      * Increment downloads count.
      *
