@@ -466,7 +466,52 @@ class UploadController extends Controller
             ], 404);
         }
     }
+    public function getMyResearches(Request $request)
+    {
+        try {
+            $userId = auth()->id();
 
+            $researches = Research::where('user_id', $userId)
+                ->withCount('researchViews')
+                ->latest()
+                ->paginate(10);
+
+            return response()->json([
+                'success' => true,
+                'data' => $researches
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch your research: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get innovations uploaded by the authenticated user
+     */
+    public function getMyInnovations(Request $request)
+    {
+        try {
+            $userId = auth()->id();
+
+            $innovations = Innovation::where('user_id', $userId)
+                ->withCount('innovationViews')
+                ->latest()
+                ->paginate(10);
+
+            return response()->json([
+                'success' => true,
+                'data' => $innovations
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch your innovations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get single innovation
      */

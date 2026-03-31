@@ -9,9 +9,10 @@ Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
     Route::post('/presigned-url', [UploadController::class, 'getPresignedUrl']);
     Route::delete('/file', [UploadController::class, 'deleteFile']);
 });
-
-// ✅ FIX: Static routes MUST come before wildcard {id} routes
-// Otherwise Laravel matches "top-viewed" and "top-researches" as an {id}
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/my-research', [UploadController::class, 'getMyResearches']);
+    Route::get('/my-innovations', [UploadController::class, 'getMyInnovations']);
+});
 
 Route::get('/innovations/top-viewed', [UploadController::class, 'getTopViewedInnovations']);
 Route::get('/innovations/{id}', [UploadController::class, 'getInnovationDetails']);
@@ -21,8 +22,6 @@ Route::get('/research/{id}', [UploadController::class, 'getResearchDetails']);
 
 Route::prefix('research')->group(function () {
     Route::get('/', [UploadController::class, 'getResearches']);
-    // ✅ Static named routes first
-    Route::get('/top-researches', [UploadController::class, 'getTopViewedResearches']);
     // ✅ Then wildcard routes
     Route::get('/{id}', [UploadController::class, 'getResearch']);
     Route::get('/{id}/download', [UploadController::class, 'downloadResearch']);
