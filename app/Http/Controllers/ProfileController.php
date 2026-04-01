@@ -90,22 +90,47 @@ class ProfileController extends Controller
                 ], 404);
             }
 
-            $profileData                      = $profile->toArray();
+            $profileData = $profile->toArray();
             $profileData['profile_image_url'] = $this->getS3Url($profile->profile_image);
-            $profileData['cover_image_url']   = $this->getS3Url($profile->cover_image);
+            $profileData['cover_image_url'] = $this->getS3Url($profile->cover_image);
 
             // Attach experiences/educations directly into profileData
-            // so it matches the shape your frontend already uses
             $profileData['experiences'] = $profile->experiences;
-            $profileData['educations']  = $profile->educations;
+            $profileData['educations'] = $profile->educations;
+
+            // Get user's innovations
+            $innovations = \App\Models\Innovation\Innovation::where('user_id', $user->id)
+                ->withCount('innovationViews')
+                ->latest()
+                ->get()
+                ->map(function ($innovation) {
+                    // Format URLs for frontend
+                    $innovation->video_url = $this->getS3Url($innovation->video_url);
+                    $innovation->thumbnail_url = $this->getS3Url($innovation->thumbnail);
+                    return $innovation;
+                });
+
+            // Get user's research papers
+            $researches = \App\Models\Research\Research::where('user_id', $user->id)
+                ->withCount('researchViews')
+                ->latest()
+                ->get()
+                ->map(function ($research) {
+                    // Format URLs for frontend
+                    $research->document_url = $this->getS3Url($research->document_url);
+                    $research->thumbnail_url = $this->getS3Url($research->thumbnail);
+                    return $research;
+                });
 
             return response()->json([
                 'success' => true,
-                'data'    => [
-                    'user'        => $user,
-                    'profile'     => $profileData,
+                'data' => [
+                    'user' => $user,
+                    'profile' => $profileData,
                     'experiences' => $profile->experiences,
-                    'educations'  => $profile->educations,
+                    'educations' => $profile->educations,
+                    'innovations' => $innovations,
+                    'researches' => $researches,
                 ]
             ]);
 
