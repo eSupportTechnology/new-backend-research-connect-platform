@@ -4,6 +4,11 @@
 use App\Http\Controllers\SellingItemController;
 use Illuminate\Support\Facades\Route;
 
+
+Route::prefix('selling')->group(function () {
+    Route::get('/', [SellingItemController::class, 'index']);
+
+});
 // Add these routes to your existing routes file
 Route::middleware('auth:sanctum')->group(function () {
 
