@@ -12,6 +12,8 @@ Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-research', [UploadController::class, 'getMyResearches']);
     Route::get('/my-innovations', [UploadController::class, 'getMyInnovations']);
+    Route::put('/innovations/{id}/update-price', [UploadController::class, 'updateInnovationPrice']);
+    Route::put('/research/{id}/update-price', [UploadController::class, 'updateResearchPrice']);
 });
 
 Route::get('/innovations/top-viewed', [UploadController::class, 'getTopViewedInnovations']);
