@@ -531,7 +531,80 @@ class UploadController extends Controller
             ], 404);
         }
     }
+    public function updateInnovationPrice(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'is_paid' => 'required|boolean',
+            'price' => 'required_if:is_paid,true|nullable|numeric|min:0'
+        ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $innovation = Innovation::where('user_id', auth()->id())->findOrFail($id);
+
+            $innovation->is_paid = $request->is_paid;
+            $innovation->price = $request->is_paid ? $request->price : null;
+            $innovation->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Innovation price updated successfully',
+                'data' => $innovation
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update price: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update research price
+     */
+    public function updateResearchPrice(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'is_paid' => 'required|boolean',
+            'price' => 'required_if:is_paid,true|nullable|numeric|min:0'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $research = Research::where('user_id', auth()->id())->findOrFail($id);
+
+            $research->is_paid = $request->is_paid;
+            $research->price = $request->is_paid ? $request->price : null;
+            $research->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Research price updated successfully',
+                'data' => $research
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update price: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Download research document
      */
