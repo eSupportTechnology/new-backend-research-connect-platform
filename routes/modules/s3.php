@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\SellingItemController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -7,6 +8,7 @@ Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
     Route::post('/research', [UploadController::class, 'uploadResearch']);
     Route::post('/innovation', [UploadController::class, 'uploadInnovation']);
     Route::post('/presigned-url', [UploadController::class, 'getPresignedUrl']);
+    Route::post('/selling-image', [SellingItemController::class, 'uploadSellingImage']);
     Route::delete('/file', [UploadController::class, 'deleteFile']);
 });
 Route::middleware('auth:sanctum')->group(function () {
