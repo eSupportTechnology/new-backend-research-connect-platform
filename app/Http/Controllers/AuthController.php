@@ -27,6 +27,7 @@ class AuthController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
+
         $user = User::where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
@@ -34,6 +35,18 @@ class AuthController extends Controller
                 'email' => ['The provided credentials are incorrect.'],
             ]);
         }
+
+        // Check if user status is Active
+        if ($user->status !== 'Active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account has been deactivated. Please contact support for assistance.',
+                'errors' => [
+                    'status' => ['Account is not active']
+                ]
+            ], 403);
+        }
+
         $user->tokens()->delete();
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -50,6 +63,7 @@ class AuthController extends Controller
                     'email' => $user->email,
                     'role' => $user->role,
                     'user_type' => $user->user_type,
+                    'status' => $user->status, // Include status in response
                 ],
             ]
         ], 200);
