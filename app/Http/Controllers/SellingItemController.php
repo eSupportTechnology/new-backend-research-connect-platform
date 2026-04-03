@@ -18,6 +18,189 @@ class SellingItemController extends Controller
     /**
      * Add item to selling table with all details
      */
+    /**
+     * Get all selling items for public browsing with filters and pagination
+     */
+    public function index(Request $request)
+    {
+        try {
+            $query = SellingItem::with(['user', 'sellable'])
+                ->where('status', 'active')
+                ->where(function($q) {
+                    $q->where('stock_quantity', '>', 0)
+                        ->orWhereNull('stock_quantity');
+                });
+
+            // Filter by sellable type
+            if ($request->has('sellable_type') && in_array($request->sellable_type, ['innovation', 'research'])) {
+                $modelClass = $request->sellable_type === 'innovation'
+                    ? Innovation::class
+                    : Research::class;
+                $query->where('sellable_type', $modelClass);
+            }
+
+            // Filter by category
+            if ($request->has('category')) {
+                $query->where('category', $request->category);
+            }
+
+            // Filter by tags
+            if ($request->has('tags')) {
+                $tags = is_array($request->tags) ? $request->tags : explode(',', $request->tags);
+                foreach ($tags as $tag) {
+                    $query->whereJsonContains('tags', trim($tag));
+                }
+            }
+
+            // Price range filter
+            if ($request->has('min_price')) {
+                $query->where('price', '>=', $request->min_price);
+            }
+            if ($request->has('max_price')) {
+                $query->where('price', '<=', $request->max_price);
+            }
+
+            // Filter by payment type
+            if ($request->has('is_paid')) {
+                $query->where('is_paid', $request->boolean('is_paid'));
+            } else {
+                // By default show both paid and free
+                $query->where(function($q) {
+                    $q->where('is_paid', true)->orWhere('is_paid', false);
+                });
+            }
+
+            // Filter free items only
+            if ($request->boolean('free_only')) {
+                $query->where('is_paid', false);
+            }
+
+            // Filter by condition
+            if ($request->has('condition')) {
+                $query->where('condition', $request->condition);
+            }
+
+            // Featured items only
+            if ($request->boolean('featured_only')) {
+                $query->where('is_featured', true);
+            }
+
+            // In stock only
+            if ($request->boolean('in_stock_only')) {
+                $query->where('stock_quantity', '>', 0);
+            }
+
+            // Search by title or description
+            if ($request->has('search')) {
+                $searchTerm = $request->search;
+                $query->where(function($q) use ($searchTerm) {
+                    $q->where('title', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('description', 'LIKE', "%{$searchTerm}%");
+                });
+            }
+
+            // Filter by user/seller
+            if ($request->has('user_id')) {
+                $query->where('user_id', $request->user_id);
+            }
+
+            // Sorting
+            $sortBy = $request->get('sort_by', 'latest');
+            switch ($sortBy) {
+                case 'price_asc':
+                    $query->orderByRaw('CASE WHEN is_paid = true THEN price ELSE 0 END ASC');
+                    break;
+                case 'price_desc':
+                    $query->orderByRaw('CASE WHEN is_paid = true THEN price ELSE 0 END DESC');
+                    break;
+                case 'popular':
+                    $query->orderBy('total_purchases', 'desc');
+                    break;
+                case 'most_viewed':
+                    $query->orderBy('total_views', 'desc');
+                    break;
+                case 'discounted':
+                    $query->where('discount_percentage', '>', 0)
+                        ->orderBy('discount_percentage', 'desc');
+                    break;
+                case 'latest':
+                default:
+                    $query->orderBy('listed_at', 'desc');
+                    break;
+            }
+
+            // Get results with pagination
+            $perPage = $request->get('per_page', 12);
+            $items = $query->paginate($perPage);
+
+            // Add additional data to each item
+            $items->getCollection()->transform(function ($item) {
+                // Calculate final price with discount
+                if ($item->is_paid && $item->discount_percentage > 0) {
+                    $item->final_price = $item->discounted_price;
+                    $item->saved_amount = $item->price - $item->discounted_price;
+                } else {
+                    $item->final_price = $item->price;
+                    $item->saved_amount = 0;
+                }
+
+                // Add seller info
+                if ($item->user) {
+                    $item->seller_name = $item->user->name;
+                    $item->seller_avatar = $item->user->avatar ?? null;
+                }
+
+                return $item;
+            });
+
+            // Get filter statistics for sidebar
+            $filters = [
+                'categories' => SellingItem::where('status', 'active')
+                    ->select('category')
+                    ->selectRaw('COUNT(*) as count')
+                    ->groupBy('category')
+                    ->get(),
+                'conditions' => SellingItem::where('status', 'active')
+                    ->select('condition')
+                    ->selectRaw('COUNT(*) as count')
+                    ->whereNotNull('condition')
+                    ->groupBy('condition')
+                    ->get(),
+                'price_range' => [
+                    'min' => SellingItem::where('status', 'active')
+                        ->where('is_paid', true)
+                        ->min('price'),
+                    'max' => SellingItem::where('status', 'active')
+                        ->where('is_paid', true)
+                        ->max('price'),
+                ],
+                'total_count' => SellingItem::where('status', 'active')->count(),
+                'free_count' => SellingItem::where('status', 'active')
+                    ->where('is_paid', false)
+                    ->count(),
+                'paid_count' => SellingItem::where('status', 'active')
+                    ->where('is_paid', true)
+                    ->count(),
+                'featured_count' => SellingItem::where('status', 'active')
+                    ->where('is_featured', true)
+                    ->count(),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $items,
+                'filters' => $filters,
+                'message' => 'Selling items retrieved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch selling items: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch selling items: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     public function addToSelling(Request $request)
     {
         $validator = Validator::make($request->all(), [
