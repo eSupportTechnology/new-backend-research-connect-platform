@@ -37,3 +37,5 @@ Route::prefix('innovation')->group(function () {
     Route::get('/top-viewed', [UploadController::class, 'getTopViewedInnovations']);
     Route::get('/{id}', [UploadController::class, 'getInnovation']);
 });
+Route::patch('/innovations/{id}/status', [UploadController::class, 'updateInnovationStatus']);
+Route::post('/innovations/bulk-status', [UploadController::class, 'bulkUpdateInnovationStatus']);

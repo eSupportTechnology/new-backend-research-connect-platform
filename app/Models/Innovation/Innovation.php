@@ -30,6 +30,7 @@ class Innovation extends Model
         'tags',
         'is_paid',
         'price',
+        'status'
     ];
 
     /**
@@ -163,6 +164,28 @@ class Innovation extends Model
     public function getViewCountAttribute()
     {
         return $this->views()->count();
+    }
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    // Scope for inactive innovations
+    public function scopeInactive($query)
+    {
+        return $query->where('status', 'inactive');
+    }
+
+    // Check if innovation is active
+    public function isActive()
+    {
+        return $this->status === 'active';
+    }
+
+    // Check if innovation is inactive
+    public function isInactive()
+    {
+        return $this->status === 'inactive';
     }
     /**
      * Boot the model.
