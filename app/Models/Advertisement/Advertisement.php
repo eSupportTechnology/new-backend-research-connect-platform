@@ -33,39 +33,67 @@ class Advertisement extends Model
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
-        'start_date' => 'datetime',
-        'end_date' => 'datetime',
+        'is_active'          => 'boolean',
+        'start_date'         => 'datetime',
+        'end_date'           => 'datetime',
         'display_start_time' => 'datetime',
-        'display_end_time' => 'datetime',
+        'display_end_time'   => 'datetime',
     ];
 
     /**
-     * Scope to get only active ads
+     * Scope to get only active, date-valid, impression-valid ads.
+     *
+     * BUG FIX: time-slot check is now two SEPARATE where() groups so
+     * the start and end conditions are always AND-ed correctly regardless
+     * of whether display_start_time / display_end_time is NULL.
+     *
+     * Old (broken) pattern:
+     *   whereNull('display_start_time')
+     *     ->orWhere('display_start_time', '<=', $time)
+     *     ->where(...)          <-- attaches only to the orWhere branch
+     *
+     * Fixed pattern: split into two independent groups, each with its own
+     * NULL-fallback, so SQL becomes:
+     *   AND (display_start_time IS NULL OR display_start_time <= ?)
+     *   AND (display_end_time   IS NULL OR display_end_time   >= ?)
      */
-    public function scopeActive($query)
+    public function scopeActive($query, $tz = 'Asia/Colombo')
     {
-        return $query->where('is_active', true)
-            ->where(function ($q) {
+        $now         = now($tz);
+        $currentTime = $now->format('H:i:s');
+
+        return $query
+            // Must be active
+            ->where('is_active', true)
+
+            // Date range — start
+            ->where(function ($q) use ($now) {
                 $q->whereNull('start_date')
-                    ->orWhere('start_date', '<=', now());
+                    ->orWhere('start_date', '<=', $now);
             })
-            ->where(function ($q) {
+
+            // Date range — end
+            ->where(function ($q) use ($now) {
                 $q->whereNull('end_date')
-                    ->orWhere('end_date', '>=', now());
+                    ->orWhere('end_date', '>=', $now);
             })
+
+            // Impression cap
             ->where(function ($q) {
                 $q->whereNull('max_impressions')
                     ->orWhereRaw('current_impressions < max_impressions');
             })
-            ->where(function ($q) {
-                // Check time slot constraints (only for side ads with time slots)
+
+            // ✅ FIX: display_start_time — own group
+            ->where(function ($q) use ($currentTime) {
                 $q->whereNull('display_start_time')
-                    ->orWhere('display_start_time', '<=', now()->format('H:i:s'))
-                    ->where(function ($sub) {
-                        $sub->whereNull('display_end_time')
-                            ->orWhere('display_end_time', '>=', now()->format('H:i:s'));
-                    });
+                    ->orWhere('display_start_time', '<=', $currentTime);
+            })
+
+            // ✅ FIX: display_end_time — own separate group
+            ->where(function ($q) use ($currentTime) {
+                $q->whereNull('display_end_time')
+                    ->orWhere('display_end_time', '>=', $currentTime);
             });
     }
 
@@ -106,32 +134,27 @@ class Advertisement extends Model
      */
     public function isAvailable(): bool
     {
-        if (!$this->is_active) {
-            return false;
-        }
+        if (!$this->is_active) return false;
 
-        if ($this->start_date && $this->start_date->isFuture()) {
-            return false;
-        }
+        $tz = 'Asia/Colombo';
 
-        if ($this->end_date && $this->end_date->isPast()) {
-            return false;
-        }
+        if ($this->start_date && $this->start_date->greaterThan(now($tz))) return false;
+        if ($this->end_date   && $this->end_date->lessThan(now($tz)))     return false;
 
         if ($this->max_impressions && $this->current_impressions >= $this->max_impressions) {
             return false;
         }
 
-        // Check time slot constraints (only for side ads)
         if ($this->type === 'side') {
-            $now = now();
-            $currentTime = $now->format('H:i:s');
+            $currentTime = now($tz)->format('H:i:s');
 
-            if ($this->display_start_time && $currentTime < $this->display_start_time->format('H:i:s')) {
+            if ($this->display_start_time &&
+                $currentTime < $this->display_start_time->format('H:i:s')) {
                 return false;
             }
 
-            if ($this->display_end_time && $currentTime > $this->display_end_time->format('H:i:s')) {
+            if ($this->display_end_time &&
+                $currentTime > $this->display_end_time->format('H:i:s')) {
                 return false;
             }
         }
@@ -152,36 +175,30 @@ class Advertisement extends Model
      */
     public function hasTimeRestrictions(): bool
     {
-        return $this->type === 'side' && ($this->display_start_time || $this->display_end_time);
+        return $this->type === 'side' &&
+            ($this->display_start_time || $this->display_end_time);
     }
 
-    /**
-     * Get formatted display start time (H:i)
-     */
     public function getFormattedStartTimeAttribute(): ?string
     {
-        return $this->display_start_time ? $this->display_start_time->format('H:i') : null;
+        return $this->display_start_time
+            ? $this->display_start_time->format('H:i')
+            : null;
     }
 
-    /**
-     * Get formatted display end time (H:i)
-     */
     public function getFormattedEndTimeAttribute(): ?string
     {
-        return $this->display_end_time ? $this->display_end_time->format('H:i') : null;
+        return $this->display_end_time
+            ? $this->display_end_time->format('H:i')
+            : null;
     }
 
-    /**
-     * Get time slot display string
-     */
     public function getTimeSlotDisplayAttribute(): string
     {
-        if (!$this->hasTimeRestrictions()) {
-            return 'All day';
-        }
+        if (!$this->hasTimeRestrictions()) return 'All day';
 
         $start = $this->formatted_start_time ?? '00:00';
-        $end = $this->formatted_end_time ?? '23:59';
+        $end   = $this->formatted_end_time   ?? '23:59';
 
         return "{$start} - {$end}";
     }

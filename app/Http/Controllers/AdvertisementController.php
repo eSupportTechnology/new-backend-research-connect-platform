@@ -111,34 +111,11 @@ class AdvertisementController extends Controller
     public function getSideAds(Request $request)
     {
         $position = $request->query('position', 'left');
-        $now = Carbon::now();
+        $now = Carbon::now('Asia/Colombo');
 
         $ads = Advertisement::active()
             ->ofType('side')
             ->position($position)
-            ->where(function($query) use ($now) {
-                $query->where(function($q) use ($now) {
-                    // Check date range
-                    $q->whereNull('start_date')
-                        ->orWhere('start_date', '<=', $now);
-                })
-                    ->where(function($q) use ($now) {
-                        $q->whereNull('end_date')
-                            ->orWhere('end_date', '>=', $now);
-                    });
-            })
-            ->where(function($query) use ($now) {
-                $currentTime = $now->format('H:i:s');
-                $query->where(function($q) use ($currentTime) {
-                    // Check time slot range
-                    $q->whereNull('display_start_time')
-                        ->orWhere('display_start_time', '<=', $currentTime);
-                })
-                    ->where(function($q) use ($currentTime) {
-                        $q->whereNull('display_end_time')
-                            ->orWhere('display_end_time', '>=', $currentTime);
-                    });
-            })
             ->orderBy('order', 'asc')
             ->get()
             ->map(function ($ad) {
@@ -172,16 +149,6 @@ class AdvertisementController extends Controller
 
         $ads = Advertisement::active()
             ->ofType('carousel')
-            ->where(function($query) use ($now) {
-                $query->where(function($q) use ($now) {
-                    $q->whereNull('start_date')
-                        ->orWhere('start_date', '<=', $now);
-                })
-                    ->where(function($q) use ($now) {
-                        $q->whereNull('end_date')
-                            ->orWhere('end_date', '>=', $now);
-                    });
-            })
             ->orderBy('order', 'asc')
             ->get()
             ->map(function ($ad) {
