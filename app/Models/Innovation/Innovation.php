@@ -30,6 +30,7 @@ class Innovation extends Model
         'tags',
         'is_paid',
         'price',
+        'status'
     ];
 
     /**
@@ -52,6 +53,10 @@ class Innovation extends Model
     protected $appends = [
         'full_innovator_name',
         'tags_array',
+        'user_has_liked',
+        'user_has_disliked',
+        'likes_count',
+        'dislikes_count',
     ];
 
     /**
@@ -163,6 +168,78 @@ class Innovation extends Model
     public function getViewCountAttribute()
     {
         return $this->views()->count();
+    }
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    // Scope for inactive innovations
+    public function scopeInactive($query)
+    {
+        return $query->where('status', 'inactive');
+    }
+
+    // Check if innovation is active
+    public function isActive()
+    {
+        return $this->status === 'active';
+    }
+
+    // Check if innovation is inactive
+    public function isInactive()
+    {
+        return $this->status === 'inactive';
+    }
+
+    public function allLikes()
+    {
+        return $this->hasMany(InnovationLike::class, 'innovation_id');
+    }
+
+    public function likes()
+    {
+        return $this->hasMany(InnovationLike::class, 'innovation_id')->where('is_like', true);
+    }
+
+    public function dislikes()
+    {
+        return $this->hasMany(InnovationLike::class, 'innovation_id')->where('is_like', false);
+    }
+
+    // Accessors
+    public function getUserHasLikedAttribute()
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        return $this->allLikes()
+            ->where('user_id', auth()->id())
+            ->where('is_like', true)
+            ->exists();
+    }
+
+    public function getUserHasDislikedAttribute()
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        return $this->allLikes()
+            ->where('user_id', auth()->id())
+            ->where('is_like', false)
+            ->exists();
+    }
+
+    public function getLikesCountAttribute()
+    {
+        return $this->likes()->count();
+    }
+
+    public function getDislikesCountAttribute()
+    {
+        return $this->dislikes()->count();
     }
     /**
      * Boot the model.

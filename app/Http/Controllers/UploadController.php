@@ -210,6 +210,7 @@ class UploadController extends Controller
                 'tags' => $request->tags,
                 'is_paid' => $isPaid,
                 'price' => $priceAmount,
+                'status' => 'active',
             ]);
 
             DB::commit();
@@ -306,7 +307,82 @@ class UploadController extends Controller
             'data' => $researches
         ]);
     }
+    public function updateInnovationStatus(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:active,inactive'
+        ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $innovation = Innovation::findOrFail($id);
+
+            // Optional: Check if user has permission (admin or owner)
+            // if (auth()->id() !== $innovation->user_id && auth()->user()->role !== 'admin') {
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => 'Unauthorized to update this innovation'
+            //     ], 403);
+            // }
+
+            $innovation->update(['status' => $request->status]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Innovation status updated successfully',
+                'data' => $innovation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk update innovation status
+     */
+    public function bulkUpdateInnovationStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'ids' => 'required|array',
+            'ids.*' => 'exists:innovations,id',
+            'status' => 'required|in:active,inactive'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $updatedCount = Innovation::whereIn('id', $request->ids)
+                ->update(['status' => $request->status]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$updatedCount} innovation(s) updated successfully",
+                'data' => [
+                    'updated_count' => $updatedCount,
+                    'status' => $request->status
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update statuses: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get all innovations with filters
      */
@@ -332,11 +408,29 @@ class UploadController extends Controller
             $query->paid();
         }
 
-        // Sorting
-        $query->latest();
-        $query->latest();
+        // Filter by status (default to active only for public viewing)
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        } else {
+            // For public API, only show active innovations
+            $query->active();
+        }
 
-        $innovations = $query->paginate(15);
+        // For admin panel, you can pass 'status=all' to show all
+        if ($request->has('show_all') && $request->show_all === 'true') {
+            $query->withoutGlobalScopes(); // Remove status filter
+        }
+
+        // Sorting
+        $sortBy = $request->get('sort_by', 'latest');
+        if ($sortBy === 'popular') {
+            $query->popular();
+        } else {
+            $query->latest();
+        }
+
+        $perPage = $request->get('per_page', 15);
+        $innovations = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -348,6 +442,7 @@ class UploadController extends Controller
         try {
             $topInnovations = Innovation::with('userProfile')
                 ->withCount('innovationViews')
+                ->where('status', 'active') // Only get active innovations
                 ->orderBy('innovation_views_count', 'desc')
                 ->take(5)
                 ->get();

@@ -7,3 +7,4 @@ require __DIR__.'/modules/user.php';
 require __DIR__.'/modules/s3.php';
 require __DIR__.'/modules/selling.php';
 require __DIR__.'/modules/investorzone.php';
+require __DIR__.'/modules/adveristment.php';
