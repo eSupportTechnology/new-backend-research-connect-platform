@@ -3,6 +3,8 @@
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\InnovationCommentController;
 use App\Http\Controllers\InnovationLikeController;
+use App\Http\Controllers\ResearchCommentController;
+use App\Http\Controllers\ResearchLikeController;
 use App\Http\Controllers\SellingItemController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
@@ -58,6 +60,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Rating stats
     Route::get('/innovations/{innovation}/ratings', [InnovationCommentController::class, 'getAverageRating']);
+
+    // --- Research Comments ---
+    Route::get('/research/{research}/comments', [ResearchCommentController::class, 'index']);
+    Route::post('/research/{research}/comments', [ResearchCommentController::class, 'store']);
+    Route::put('/research/{research}/comments/{comment}', [ResearchCommentController::class, 'update']);
+    Route::delete('/research/{research}/comments/{comment}', [ResearchCommentController::class, 'destroy']);
+
+    // Like/Dislike Research Comments
+    Route::post('/research/{research}/comments/{comment}/toggle-like', [ResearchCommentController::class, 'toggleLike']);
+
+    // Like/Dislike Research
+    Route::post('/research/{research}/toggle-like', [ResearchLikeController::class, 'toggleLike']);
+
+    // Research Rating stats
+    Route::get('/research/{research}/ratings', [ResearchCommentController::class, 'getAverageRating']);
 });
 Route::middleware(['auth:sanctum'])->group(function () {
     // Follow/Unfollow

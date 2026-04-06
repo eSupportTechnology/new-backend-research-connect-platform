@@ -69,6 +69,10 @@ class Research extends Model
     protected $appends = [
         'full_author_name',
         'tags_array',
+        'user_has_liked',
+        'user_has_disliked',
+        'likes_count',
+        'dislikes_count',
     ];
 
     /**
@@ -224,6 +228,61 @@ class Research extends Model
     public function userProfile()
     {
         return $this->belongsTo(Profile::class, 'user_id', 'user_id');
+    }
+
+    public function allLikes()
+    {
+        return $this->hasMany(ResearchLike::class, 'research_id');
+    }
+
+    public function likes()
+    {
+        return $this->hasMany(ResearchLike::class, 'research_id')->where('is_like', true);
+    }
+
+    public function dislikes()
+    {
+        return $this->hasMany(ResearchLike::class, 'research_id')->where('is_like', false);
+    }
+
+    public function comments()
+    {
+        return $this->hasMany(ResearchComment::class, 'research_id');
+    }
+
+    // Accessors
+    public function getUserHasLikedAttribute()
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        return $this->allLikes()
+            ->where('user_id', auth()->id())
+            ->where('is_like', true)
+            ->exists();
+    }
+
+    public function getUserHasDislikedAttribute()
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        return $this->allLikes()
+            ->where('user_id', auth()->id())
+            ->where('is_like', false)
+            ->exists();
+    }
+
+    public function getLikesCountAttribute()
+    {
+        return $this->likes()->count();
+    }
+
+    public function getDislikesCountAttribute()
+    {
+        return $this->dislikes()->count();
     }
 
     /**
