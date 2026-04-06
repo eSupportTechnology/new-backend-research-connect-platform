@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\FollowerController;
+use App\Http\Controllers\InnovationCommentController;
 use App\Http\Controllers\SellingItemController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
@@ -39,3 +41,37 @@ Route::prefix('innovation')->group(function () {
 });
 Route::patch('/innovations/{id}/status', [UploadController::class, 'updateInnovationStatus']);
 Route::post('/innovations/bulk-status', [UploadController::class, 'bulkUpdateInnovationStatus']);
+
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Comments
+    Route::get('/innovations/{innovation}/comments', [InnovationCommentController::class, 'index']);
+    Route::post('/innovations/{innovation}/comments', [InnovationCommentController::class, 'store']);
+    Route::put('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'update']);
+    Route::delete('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'destroy']);
+
+    // Like/Dislike
+    Route::post('/innovations/{innovation}/comments/{comment}/toggle-like', [InnovationCommentController::class, 'toggleLike']);
+
+    // Rating stats
+    Route::get('/innovations/{innovation}/ratings', [InnovationCommentController::class, 'getAverageRating']);
+});
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Follow/Unfollow
+    Route::post('/users/{user}/follow', [FollowerController::class, 'follow']);
+    Route::delete('/users/{user}/unfollow', [FollowerController::class, 'unfollow']);
+    Route::post('/users/{user}/toggle-follow', [FollowerController::class, 'toggleFollow']);
+
+    // Get followers and following
+    Route::get('/users/{user}/followers', [FollowerController::class, 'followers']);
+    Route::get('/users/{user}/following', [FollowerController::class, 'following']);
+
+    // Check follow status
+    Route::get('/users/{user}/follow-status', [FollowerController::class, 'checkFollowStatus']);
+    Route::get('/users/{user}/follow-stats', [FollowerController::class, 'stats']);
+
+    // Suggestions
+    Route::get('/follow-suggestions', [FollowerController::class, 'suggestions']);
+
+    // Remove follower
+    Route::delete('/followers/{follower}/remove', [FollowerController::class, 'removeFollower']);
+});

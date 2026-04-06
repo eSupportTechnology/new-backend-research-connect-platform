@@ -22,7 +22,7 @@ class User extends Authenticatable
      */
     protected $keyType = 'string';
     public $incrementing = false;
-
+    protected $appends = ['follower_count', 'following_count'];
     /**
      * Mass assignable fields
      */
@@ -53,6 +53,24 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+    public function following()
+    {
+        return $this->belongsToMany(
+            User::class,
+            'followers',
+            'follower_id',
+            'following_id'
+        )->withTimestamps();
+    }
+    public function followers()
+    {
+        return $this->belongsToMany(
+            User::class,
+            'followers',
+            'following_id',
+            'follower_id'
+        )->withTimestamps();
     }
 
     /**
@@ -124,7 +142,34 @@ class User extends Authenticatable
     | Accessors
     |--------------------------------------------------------------------------
     */
+    public function isFollowing($userId)
+    {
+        return $this->following()->where('following_id', $userId)->exists();
+    }
 
+    /**
+     * Check if this user is followed by another user
+     */
+    public function isFollowedBy($userId)
+    {
+        return $this->followers()->where('follower_id', $userId)->exists();
+    }
+
+    /**
+     * Get follower count
+     */
+    public function getFollowerCountAttribute()
+    {
+        return $this->followers()->count();
+    }
+
+    /**
+     * Get following count
+     */
+    public function getFollowingCountAttribute()
+    {
+        return $this->following()->count();
+    }
     public function getFullNameAttribute()
     {
         return $this->first_name . ' ' . $this->last_name;
