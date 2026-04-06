@@ -53,6 +53,10 @@ class Innovation extends Model
     protected $appends = [
         'full_innovator_name',
         'tags_array',
+        'user_has_liked',
+        'user_has_disliked',
+        'likes_count',
+        'dislikes_count',
     ];
 
     /**
@@ -186,6 +190,56 @@ class Innovation extends Model
     public function isInactive()
     {
         return $this->status === 'inactive';
+    }
+
+    public function allLikes()
+    {
+        return $this->hasMany(InnovationLike::class, 'innovation_id');
+    }
+
+    public function likes()
+    {
+        return $this->hasMany(InnovationLike::class, 'innovation_id')->where('is_like', true);
+    }
+
+    public function dislikes()
+    {
+        return $this->hasMany(InnovationLike::class, 'innovation_id')->where('is_like', false);
+    }
+
+    // Accessors
+    public function getUserHasLikedAttribute()
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        return $this->allLikes()
+            ->where('user_id', auth()->id())
+            ->where('is_like', true)
+            ->exists();
+    }
+
+    public function getUserHasDislikedAttribute()
+    {
+        if (!auth()->check()) {
+            return false;
+        }
+
+        return $this->allLikes()
+            ->where('user_id', auth()->id())
+            ->where('is_like', false)
+            ->exists();
+    }
+
+    public function getLikesCountAttribute()
+    {
+        return $this->likes()->count();
+    }
+
+    public function getDislikesCountAttribute()
+    {
+        return $this->dislikes()->count();
     }
     /**
      * Boot the model.

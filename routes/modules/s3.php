@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\InnovationCommentController;
+use App\Http\Controllers\InnovationLikeController;
 use App\Http\Controllers\SellingItemController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
@@ -49,8 +50,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'update']);
     Route::delete('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'destroy']);
 
-    // Like/Dislike
+    // Like/Dislike Comments
     Route::post('/innovations/{innovation}/comments/{comment}/toggle-like', [InnovationCommentController::class, 'toggleLike']);
+
+    // Like/Dislike Innovation
+    Route::post('/innovations/{innovation}/toggle-like', [InnovationLikeController::class, 'toggleLike']);
 
     // Rating stats
     Route::get('/innovations/{innovation}/ratings', [InnovationCommentController::class, 'getAverageRating']);
