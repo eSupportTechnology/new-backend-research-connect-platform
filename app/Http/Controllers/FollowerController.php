@@ -18,7 +18,6 @@ class FollowerController extends Controller
         try {
             $currentUser = auth()->user();
 
-            // Prevent self-following
             if ($currentUser->id === $userId) {
                 return response()->json([
                     'success' => false,
@@ -26,7 +25,6 @@ class FollowerController extends Controller
                 ], 400);
             }
 
-            // Check if user exists
             $userToFollow = User::find($userId);
             if (!$userToFollow) {
                 return response()->json([
@@ -35,7 +33,6 @@ class FollowerController extends Controller
                 ], 404);
             }
 
-            // Check if already following
             $existingFollow = Follower::where('follower_id', $currentUser->id)
                 ->where('following_id', $userId)
                 ->first();
@@ -47,7 +44,6 @@ class FollowerController extends Controller
                 ], 409);
             }
 
-            // Create follow relationship
             Follower::create([
                 'follower_id' => $currentUser->id,
                 'following_id' => $userId,
@@ -56,10 +52,8 @@ class FollowerController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Successfully followed user',
-                'data' => [
-                    'is_following' => true,
-                    'follower_count' => $userToFollow->followers()->count(),
-                ],
+                'is_following' => true,
+                'follower_count' => $userToFollow->followers()->count(),
             ], 201);
 
         } catch (\Exception $e) {
@@ -97,10 +91,8 @@ class FollowerController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Successfully unfollowed user',
-                'data' => [
-                    'is_following' => false,
-                    'follower_count' => $userToUnfollow ? $userToUnfollow->followers()->count() : 0,
-                ],
+                'is_following' => false,
+                'follower_count' => $userToUnfollow ? $userToUnfollow->followers()->count() : 0,
             ], 200);
 
         } catch (\Exception $e) {
@@ -120,7 +112,6 @@ class FollowerController extends Controller
         try {
             $currentUser = auth()->user();
 
-            // Prevent self-following
             if ($currentUser->id === $userId) {
                 return response()->json([
                     'success' => false,
@@ -128,7 +119,6 @@ class FollowerController extends Controller
                 ], 400);
             }
 
-            // Check if user exists
             $targetUser = User::find($userId);
             if (!$targetUser) {
                 return response()->json([
@@ -142,12 +132,10 @@ class FollowerController extends Controller
                 ->first();
 
             if ($follow) {
-                // Unfollow
                 $follow->delete();
                 $isFollowing = false;
                 $message = 'Successfully unfollowed user';
             } else {
-                // Follow
                 Follower::create([
                     'follower_id' => $currentUser->id,
                     'following_id' => $userId,
@@ -159,11 +147,9 @@ class FollowerController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => $message,
-                'data' => [
-                    'is_following' => $isFollowing,
-                    'follower_count' => $targetUser->followers()->count(),
-                    'following_count' => $targetUser->following()->count(),
-                ],
+                'is_following' => $isFollowing,
+                'follower_count' => $targetUser->followers()->count(),
+                'following_count' => $targetUser->following()->count(),
             ], 200);
 
         } catch (\Exception $e) {
@@ -192,11 +178,13 @@ class FollowerController extends Controller
             }
 
             $followers = $user->followers()
-                ->select('users.id', 'users.name', 'users.profile_image_url', 'users.email')
+                ->select('users.id', 'users.first_name', 'users.last_name', 'users.email')
                 ->paginate($perPage);
 
-            // Add is_following status for each follower
             $followers->getCollection()->transform(function ($follower) {
+                $follower->load('profile');
+                $follower->display_name = trim($follower->first_name . ' ' . $follower->last_name);
+                $follower->profile_image_url = $follower->profile?->profile_image_url ?? null;
                 $follower->is_following = auth()->check()
                     ? auth()->user()->isFollowing($follower->id)
                     : false;
@@ -237,15 +225,17 @@ class FollowerController extends Controller
             }
 
             $following = $user->following()
-                ->select('users.id', 'users.name', 'users.profile_image_url', 'users.email')
+                ->select('users.id', 'users.first_name', 'users.last_name', 'users.email')
                 ->paginate($perPage);
 
-            // Add is_following status for each user
             $following->getCollection()->transform(function ($followedUser) {
+                $followedUser->load('profile');
+                $followedUser->display_name = trim($followedUser->first_name . ' ' . $followedUser->last_name);
+                $followedUser->profile_image_url = $followedUser->profile?->profile_image_url ?? null;
                 $followedUser->is_following = auth()->check()
                     ? auth()->user()->isFollowing($followedUser->id)
                     : false;
-                $followedUser->is_followed_by_me = true; // Always true in this context
+                $followedUser->is_followed_by_me = true;
                 return $followedUser;
             });
 
@@ -343,7 +333,7 @@ class FollowerController extends Controller
     }
 
     /**
-     * Get suggested users to follow (users not currently followed)
+     * Get suggested users to follow
      */
     public function suggestions(Request $request)
     {
@@ -357,12 +347,15 @@ class FollowerController extends Controller
                     ->where('follower_id', $currentUser->id);
             })
                 ->where('id', '!=', $currentUser->id)
-                ->select('id', 'name', 'profile_image_url', 'email')
+                ->select('id', 'first_name', 'last_name', 'email')
                 ->inRandomOrder()
                 ->limit($limit)
                 ->get();
 
             $suggestedUsers->each(function ($user) {
+                $user->load('profile');
+                $user->display_name = trim($user->first_name . ' ' . $user->last_name);
+                $user->profile_image_url = $user->profile?->profile_image_url ?? null;
                 $user->follower_count = $user->followers()->count();
                 $user->following_count = $user->following()->count();
             });
@@ -380,7 +373,6 @@ class FollowerController extends Controller
             ], 500);
         }
     }
-
     /**
      * Remove a follower
      */
