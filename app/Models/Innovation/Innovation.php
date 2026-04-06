@@ -30,7 +30,8 @@ class Innovation extends Model
         'tags',
         'is_paid',
         'price',
-        'status'
+        'status',
+        'views'
     ];
 
     /**
@@ -157,17 +158,13 @@ class Innovation extends Model
     {
         return $this->belongsTo(Profile::class, 'user_id', 'user_id');
     }
-    public function views()
-    {
-        return $this->hasMany(InnovationViews::class);
-    }
     public function innovationViews()
     {
         return $this->hasMany(InnovationViews::class, 'innovation_id');
     }
     public function getViewCountAttribute()
     {
-        return $this->views()->count();
+        return $this->views;
     }
     public function scopeActive($query)
     {
@@ -252,6 +249,17 @@ class Innovation extends Model
             if (is_null($innovation->is_paid)) {
                 $innovation->is_paid = false;
             }
+            if (is_null($innovation->views)) {
+                $innovation->views = 0;
+            }
         });
+    }
+
+    /**
+     * Increment views.
+     */
+    public function incrementViews()
+    {
+        $this->increment('views');
     }
 }

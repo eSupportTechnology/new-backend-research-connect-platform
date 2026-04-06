@@ -21,9 +21,6 @@ return new class extends Migration
                 ->constrained('users')
                 ->onDelete('cascade');
 
-            // Optional: track guest users
-            $table->string('ip_address')->nullable();
-
             $table->timestamps();
         });
     }

@@ -211,6 +211,7 @@ class UploadController extends Controller
                 'is_paid' => $isPaid,
                 'price' => $priceAmount,
                 'status' => 'active',
+                'views' => 0,
             ]);
 
             DB::commit();
@@ -466,30 +467,22 @@ class UploadController extends Controller
         try {
             $research = Research::with('userProfile')->findOrFail($id);
 
-            $userId = auth()->id();
-            $ip = request()->ip();
+            $userId = auth('sanctum')->id();
 
-            // 🔥 Check existing view properly
-            $existingView = ResearchViews::where('research_id', $research->id)
-                ->where(function ($query) use ($userId, $ip) {
-                    if ($userId) {
-                        $query->where('user_id', $userId);
-                    } else {
-                        $query->where('ip_address', $ip);
-                    }
-                })
-                ->first();
+            // If logged in → track view per user
+            if ($userId) {
+                $existingView = ResearchViews::where('research_id', $research->id)
+                    ->where('user_id', $userId)
+                    ->first();
 
-            // ✅ Insert if not exists
-            if (!$existingView) {
-                ResearchViews::create([
-                    'research_id' => $research->id,
-                    'user_id' => $userId,
-                    'ip_address' => $ip,
-                ]);
+                if (!$existingView) {
+                    ResearchViews::create([
+                        'research_id' => $research->id,
+                        'user_id' => $userId,
+                    ]);
 
-                // ✅ increment views
-                $research->increment('views');
+                    $research->incrementViews();
+                }
             }
 
             return response()->json([
@@ -513,23 +506,29 @@ class UploadController extends Controller
         try {
             $innovation = Innovation::with('userProfile')->findOrFail($id);
 
-            // Only create view if user hasn't viewed this innovation before
-            $existingView = InnovationViews::where('innovation_id', $innovation->id)
-                ->where('user_id', auth()->id())
-                ->first();
+            $userId = auth('sanctum')->id();
 
-            if (!$existingView) {
-                InnovationViews::create([
-                    'innovation_id' => $innovation->id,
-                    'user_id' => auth()->id(),
-                    'ip_address' => request()->ip(),
-                ]);
+            // If logged in → track view per user
+            if ($userId) {
+                $existingView = InnovationViews::where('innovation_id', $innovation->id)
+                    ->where('user_id', $userId)
+                    ->first();
+
+                if (!$existingView) {
+                    InnovationViews::create([
+                        'innovation_id' => $innovation->id,
+                        'user_id' => $userId,
+                    ]);
+
+                    $innovation->incrementViews();
+                }
             }
 
             return response()->json([
                 'success' => true,
                 'data' => $innovation
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -544,11 +543,27 @@ class UploadController extends Controller
     public function getResearch($id)
     {
         try {
-            // Add eager loading for userProfile relationship
             $research = Research::with('userProfile')->findOrFail($id);
 
-            // Increment views
-            $research->incrementViews();
+            $userId = auth('sanctum')->id();
+
+            if ($userId) {
+                $existingView = ResearchViews::where('research_id', $research->id)
+                    ->where('user_id', $userId)
+                    ->first();
+
+                if (!$existingView) {
+                    ResearchViews::create([
+                        'research_id' => $research->id,
+                        'user_id' => $userId,
+                    ]);
+                    $research->incrementViews();
+                }
+            } else {
+                // Track guest views by session or IP if needed
+                // For now, always increment for guests
+                $research->incrementViews();
+            }
 
             return response()->json([
                 'success' => true,
@@ -614,6 +629,9 @@ class UploadController extends Controller
     {
         try {
             $innovation = Innovation::findOrFail($id);
+
+            // Increment views
+            $innovation->incrementViews();
 
             return response()->json([
                 'success' => true,

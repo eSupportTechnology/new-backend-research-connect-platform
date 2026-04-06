@@ -14,7 +14,7 @@ class ResearchViews extends Model
     protected $fillable = [
         'research_id',
         'user_id',
-        'ip_address',
+
     ];
 
     protected $casts = [
