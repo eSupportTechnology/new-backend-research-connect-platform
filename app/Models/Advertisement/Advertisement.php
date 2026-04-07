@@ -78,9 +78,10 @@ class Advertisement extends Model
                     ->orWhere('end_date', '>=', $now);
             })
 
-            // Impression cap
+            // Impression cap (0 means unlimited)
             ->where(function ($q) {
                 $q->whereNull('max_impressions')
+                    ->orWhere('max_impressions', 0)
                     ->orWhereRaw('current_impressions < max_impressions');
             })
 
@@ -141,7 +142,7 @@ class Advertisement extends Model
         if ($this->start_date && $this->start_date->greaterThan(now($tz))) return false;
         if ($this->end_date   && $this->end_date->lessThan(now($tz)))     return false;
 
-        if ($this->max_impressions && $this->current_impressions >= $this->max_impressions) {
+        if ($this->max_impressions > 0 && $this->current_impressions >= $this->max_impressions) {
             return false;
         }
 

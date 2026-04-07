@@ -40,8 +40,8 @@ class AdvertisementController extends Controller
                 'link' => $ad->cta_link,
                 'image' => $ad->image_url,
                 'color' => $ad->color,
-                'start_date' => $ad->start_date,
-                'end_date' => $ad->end_date,
+                'start_date' => $ad->start_date ? $ad->start_date->setTimezone('Asia/Colombo')->format('Y-m-d') : null,
+                'end_date' => $ad->end_date ? $ad->end_date->setTimezone('Asia/Colombo')->format('Y-m-d') : null,
                 'display_start_time' => $ad->display_start_time,
                 'display_end_time' => $ad->display_end_time,
                 'order' => $ad->order,
@@ -91,8 +91,8 @@ class AdvertisementController extends Controller
                     'color' => $ad->color,
                     'order' => $ad->order,
                     'is_active' => $ad->is_active,
-                    'start_date' => $ad->start_date,
-                    'end_date' => $ad->end_date,
+                    'start_date' => $ad->start_date ? $ad->start_date->setTimezone('Asia/Colombo')->format('Y-m-d') : null,
+                    'end_date' => $ad->end_date ? $ad->end_date->setTimezone('Asia/Colombo')->format('Y-m-d') : null,
                     'display_start_time' => $ad->display_start_time ? $ad->display_start_time->format('H:i') : null,
                     'display_end_time' => $ad->display_end_time ? $ad->display_end_time->format('H:i') : null,
                     'max_impressions' => $ad->max_impressions,
@@ -254,12 +254,12 @@ class AdvertisementController extends Controller
             $data['image_path'] = $path;
         }
 
-        // Convert dates if provided
+        // Convert dates correctly with timezone to avoid returning the previous day
         if (isset($data['start_date'])) {
-            $data['start_date'] = Carbon::parse($data['start_date']);
+            $data['start_date'] = Carbon::parse($data['start_date'], 'Asia/Colombo')->startOfDay()->utc();
         }
         if (isset($data['end_date'])) {
-            $data['end_date'] = Carbon::parse($data['end_date']);
+            $data['end_date'] = Carbon::parse($data['end_date'], 'Asia/Colombo')->endOfDay()->utc();
         }
 
         $ad = Advertisement::create($data);
@@ -324,12 +324,12 @@ class AdvertisementController extends Controller
             $data['image_path'] = $path;
         }
 
-        // Convert dates if provided
+        // Convert dates correctly with timezone to avoid returning the previous day
         if (isset($data['start_date'])) {
-            $data['start_date'] = Carbon::parse($data['start_date']);
+            $data['start_date'] = Carbon::parse($data['start_date'], 'Asia/Colombo')->startOfDay()->utc();
         }
         if (isset($data['end_date'])) {
-            $data['end_date'] = Carbon::parse($data['end_date']);
+            $data['end_date'] = Carbon::parse($data['end_date'], 'Asia/Colombo')->endOfDay()->utc();
         }
 
         $ad->update($data);
@@ -388,8 +388,8 @@ class AdvertisementController extends Controller
                 'clicks' => $ad->clicks,
                 'ctr' => round($ctr, 2),
                 'is_active' => $ad->is_active,
-                'start_date' => $ad->start_date,
-                'end_date' => $ad->end_date,
+                'start_date' => $ad->start_date ? $ad->start_date->setTimezone('Asia/Colombo')->format('Y-m-d') : null,
+                'end_date' => $ad->end_date ? $ad->end_date->setTimezone('Asia/Colombo')->format('Y-m-d') : null,
                 'display_start_time' => $ad->display_start_time,
                 'display_end_time' => $ad->display_end_time,
                 'deleted_at' => $ad->deleted_at,
