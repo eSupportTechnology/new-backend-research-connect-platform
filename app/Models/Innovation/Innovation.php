@@ -30,7 +30,8 @@ class Innovation extends Model
         'tags',
         'is_paid',
         'price',
-        'status'
+        'status',
+        'views'
     ];
 
     /**
@@ -57,6 +58,9 @@ class Innovation extends Model
         'user_has_disliked',
         'likes_count',
         'dislikes_count',
+        'average_rating',
+        'total_ratings',
+        'user_rating',
     ];
 
     /**
@@ -157,17 +161,13 @@ class Innovation extends Model
     {
         return $this->belongsTo(Profile::class, 'user_id', 'user_id');
     }
-    public function views()
-    {
-        return $this->hasMany(InnovationViews::class);
-    }
     public function innovationViews()
     {
         return $this->hasMany(InnovationViews::class, 'innovation_id');
     }
     public function getViewCountAttribute()
     {
-        return $this->views()->count();
+        return $this->views;
     }
     public function scopeActive($query)
     {
@@ -190,6 +190,11 @@ class Innovation extends Model
     public function isInactive()
     {
         return $this->status === 'inactive';
+    }
+
+    public function comments()
+    {
+        return $this->hasMany(InnovationComment::class, 'innovation_id');
     }
 
     public function allLikes()
@@ -241,6 +246,39 @@ class Innovation extends Model
     {
         return $this->dislikes()->count();
     }
+
+    /**
+     * Get the average rating from comments.
+     */
+    public function getAverageRatingAttribute()
+    {
+        $avg = $this->comments()->where('rating', '>', 0)->avg('rating');
+        return round($avg ?? 0, 1);
+    }
+
+    /**
+     * Get the total number of ratings.
+     */
+    public function getTotalRatingsAttribute()
+    {
+        return $this->comments()->where('rating', '>', 0)->count();
+    }
+
+    /**
+     * Get the current user's rating (if any).
+     */
+    public function getUserRatingAttribute()
+    {
+        if (!auth()->check()) {
+            return null;
+        }
+
+        $comment = $this->comments()
+            ->where('user_id', auth()->id())
+            ->first();
+
+        return $comment ? $comment->rating : null;
+    }
     /**
      * Boot the model.
      */
@@ -252,6 +290,17 @@ class Innovation extends Model
             if (is_null($innovation->is_paid)) {
                 $innovation->is_paid = false;
             }
+            if (is_null($innovation->views)) {
+                $innovation->views = 0;
+            }
         });
+    }
+
+    /**
+     * Increment views.
+     */
+    public function incrementViews()
+    {
+        $this->increment('views');
     }
 }

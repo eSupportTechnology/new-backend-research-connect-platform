@@ -4,7 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class InnovationResource extends JsonResource
+class ResearchResource extends JsonResource
 {
     public function toArray($request)
     {
@@ -12,18 +12,19 @@ class InnovationResource extends JsonResource
             // Basic info
             'id' => $this->id,
             'title' => $this->title,
-            'description' => $this->description,
+            'description' => $this->abstract, // Map abstract to description for consistency
 
-            // View count
+            // View count & Downloads
             'views' => $this->views,
+            'downloads' => $this->downloads,
 
             // Rating stats
             'average_rating' => $this->average_rating,
             'total_ratings' => $this->total_ratings,
             'user_rating' => $this->user_rating,
 
-            // Video/Media info
-            'video_url' => $this->video_url,
+            // Document/Media info
+            'document_url' => $this->document_url,
             'thumbnail' => $this->thumbnail,
 
             // Metadata
@@ -31,10 +32,11 @@ class InnovationResource extends JsonResource
             'tags' => $this->tags_array, // Already array format
             'is_paid' => $this->is_paid,
             'price' => $this->when($this->is_paid, $this->price),
+            'status' => $this->status,
 
-            // Innovator info (combined from first_name, last_name)
+            // Author info (mapped as innovator for consistency if needed, or structured similarly)
             'innovator' => [
-                'name' => $this->full_innovator_name,
+                'name' => $this->full_author_name,
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
             ],
