@@ -303,6 +303,9 @@ class UploadController extends Controller
         $perPage = $request->get('per_page', 15);
         $researches = $query->paginate($perPage);
 
+        // Map through Resource to ensure consistent data structure and attributes
+        $researches->setCollection($researches->getCollection()->mapInto(\App\Http\Resources\ResearchResource::class));
+
         return response()->json([
             'success' => true,
             'data' => $researches
@@ -455,6 +458,27 @@ class UploadController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch top innovations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getTopViewedResearches(Request $request)
+    {
+        try {
+            $topResearches = Research::with('userProfile')
+                ->where('status', 'approved') // Only get approved researches
+                ->orderBy('views', 'desc')
+                ->take(5)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => \App\Http\Resources\ResearchResource::collection($topResearches)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch top researches: ' . $e->getMessage()
             ], 500);
         }
     }
