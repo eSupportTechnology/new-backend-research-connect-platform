@@ -442,9 +442,8 @@ class UploadController extends Controller
     {
         try {
             $topInnovations = Innovation::with('userProfile')
-                ->withCount('innovationViews')
                 ->where('status', 'active') // Only get active innovations
-                ->orderBy('innovation_views_count', 'desc')
+                ->orderBy('views', 'desc')
                 ->take(5)
                 ->get();
 

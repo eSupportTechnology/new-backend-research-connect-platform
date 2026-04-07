@@ -15,7 +15,12 @@ class InnovationResource extends JsonResource
             'description' => $this->description,
 
             // View count
-            'views' => $this->innovation_views_count ?? 0,
+            'views' => $this->views,
+
+            // Rating stats
+            'average_rating' => $this->average_rating,
+            'total_ratings' => $this->total_ratings,
+            'user_rating' => $this->user_rating,
 
             // Video/Media info
             'video_url' => $this->video_url,
