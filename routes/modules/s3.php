@@ -63,6 +63,14 @@ Route::post('/research/{research}/comments/{comment}/toggle-like', [ResearchComm
 Route::patch('/innovations/{id}/status', [UploadController::class, 'updateInnovationStatus']);
 Route::post('/innovations/bulk-status', [UploadController::class, 'bulkUpdateInnovationStatus']);
 
+// Admin Moderation Routes
+Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+    Route::get('/innovation-comments', [InnovationCommentController::class, 'adminIndex']);
+    Route::delete('/innovation-comments/{id}', [InnovationCommentController::class, 'adminDestroy']);
+    Route::get('/research-comments', [ResearchCommentController::class, 'adminIndex']);
+    Route::delete('/research-comments/{id}', [ResearchCommentController::class, 'adminDestroy']);
+});
+
 Route::middleware(['auth:sanctum'])->group(function () {
     // Like/Dislike Innovation
     // (POST routes remain protected)
