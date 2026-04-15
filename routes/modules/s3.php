@@ -9,6 +9,12 @@ use App\Http\Controllers\SellingItemController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
+// Publicly accessible comment and rating routes
+Route::get('/innovations/{innovation}/comments', [InnovationCommentController::class, 'index']);
+Route::get('/innovations/{innovation}/ratings', [InnovationCommentController::class, 'getAverageRating']);
+Route::get('/research/{research}/comments', [ResearchCommentController::class, 'index']);
+Route::get('/research/{research}/ratings', [ResearchCommentController::class, 'getAverageRating']);
+
 Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
     Route::post('/research', [UploadController::class, 'uploadResearch']);
     Route::post('/innovation', [UploadController::class, 'uploadInnovation']);
@@ -42,39 +48,28 @@ Route::prefix('innovation')->group(function () {
     Route::get('/top-viewed', [UploadController::class, 'getTopViewedInnovations']);
     Route::get('/{id}', [UploadController::class, 'getInnovation']);
 });
+
+// Adding separately because nested within protected doesn't work for public
+Route::post('/innovations/{innovation}/comments', [InnovationCommentController::class, 'store'])->middleware('auth:sanctum');
+Route::put('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'update'])->middleware('auth:sanctum');
+Route::delete('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'destroy'])->middleware('auth:sanctum');
+Route::post('/innovations/{innovation}/comments/{comment}/toggle-like', [InnovationCommentController::class, 'toggleLike'])->middleware('auth:sanctum');
+
+Route::post('/research/{research}/comments', [ResearchCommentController::class, 'store'])->middleware('auth:sanctum');
+Route::put('/research/{research}/comments/{comment}', [ResearchCommentController::class, 'update'])->middleware('auth:sanctum');
+Route::delete('/research/{research}/comments/{comment}', [ResearchCommentController::class, 'destroy'])->middleware('auth:sanctum');
+Route::post('/research/{research}/comments/{comment}/toggle-like', [ResearchCommentController::class, 'toggleLike'])->middleware('auth:sanctum');
 Route::patch('/innovations/{id}/status', [UploadController::class, 'updateInnovationStatus']);
 Route::post('/innovations/bulk-status', [UploadController::class, 'bulkUpdateInnovationStatus']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
-    // Comments
-    Route::get('/innovations/{innovation}/comments', [InnovationCommentController::class, 'index']);
-    Route::post('/innovations/{innovation}/comments', [InnovationCommentController::class, 'store']);
-    Route::put('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'update']);
-    Route::delete('/innovations/{innovation}/comments/{comment}', [InnovationCommentController::class, 'destroy']);
-
-    // Like/Dislike Comments
-    Route::post('/innovations/{innovation}/comments/{comment}/toggle-like', [InnovationCommentController::class, 'toggleLike']);
-
     // Like/Dislike Innovation
+    // (POST routes remain protected)
     Route::post('/innovations/{innovation}/toggle-like', [InnovationLikeController::class, 'toggleLike']);
 
-    // Rating stats
-    Route::get('/innovations/{innovation}/ratings', [InnovationCommentController::class, 'getAverageRating']);
-
-    // --- Research Comments ---
-    Route::get('/research/{research}/comments', [ResearchCommentController::class, 'index']);
-    Route::post('/research/{research}/comments', [ResearchCommentController::class, 'store']);
-    Route::put('/research/{research}/comments/{comment}', [ResearchCommentController::class, 'update']);
-    Route::delete('/research/{research}/comments/{comment}', [ResearchCommentController::class, 'destroy']);
-
-    // Like/Dislike Research Comments
-    Route::post('/research/{research}/comments/{comment}/toggle-like', [ResearchCommentController::class, 'toggleLike']);
-
     // Like/Dislike Research
+    // (POST routes remain protected)
     Route::post('/research/{research}/toggle-like', [ResearchLikeController::class, 'toggleLike']);
-
-    // Research Rating stats
-    Route::get('/research/{research}/ratings', [ResearchCommentController::class, 'getAverageRating']);
 });
 Route::middleware(['auth:sanctum'])->group(function () {
     // Follow/Unfollow
