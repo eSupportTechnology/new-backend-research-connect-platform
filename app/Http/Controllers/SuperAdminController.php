@@ -131,4 +131,101 @@ class SuperAdminController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get users based on their contributions (Innovation or Research) for Admin management
+     */
+    public function getUsersByContribution(Request $request)
+    {
+        try {
+            $type = $request->query('type', 'innovator'); // innovator or researcher
+            
+            $query = User::with(['profile'])
+                ->withCount(['innovations', 'researches']);
+
+            if ($type === 'innovator') {
+                $query->has('innovations');
+            } else {
+                $query->has('researches');
+            }
+
+            $users = $query->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'data' => $users
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching contributors: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle the "Best" status of a user
+     */
+    public function toggleBestStatus(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            $type = $request->input('type'); // innovator or researcher
+
+            if ($type === 'innovator') {
+                $user->is_best_innovator = !$user->is_best_innovator;
+            } elseif ($type === 'researcher') {
+                $user->is_best_researcher = !$user->is_best_researcher;
+            } else {
+                return response()->json(['success' => false, 'message' => 'Invalid type'], 400);
+            }
+
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User status updated successfully',
+                'is_best' => $type === 'innovator' ? $user->is_best_innovator : $user->is_best_researcher
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating user: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get featured performers for public display
+     */
+    public function getFeaturedPerformers(Request $request)
+    {
+        try {
+            $type = $request->query('type', 'innovator');
+            
+            $query = User::with(['profile'])
+                ->withCount(['innovations', 'researches']);
+
+            if ($type === 'innovator') {
+                $query->where('is_best_innovator', true);
+            } else {
+                $query->where('is_best_researcher', true);
+            }
+
+            $users = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $users
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching featured performers: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
