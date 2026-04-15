@@ -771,6 +771,11 @@ class UploadController extends Controller
     /**
      * Update research status (admin only)
      */
+
+
+    /**
+     * Bulk update research status (admin only)
+     */
     public function updateResearchStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
@@ -798,6 +803,44 @@ class UploadController extends Controller
                 'success' => false,
                 'message' => 'Research not found'
             ], 404);
+        }
+    }
+
+    /**
+     * Bulk update research status (admin only)
+     */
+    public function bulkUpdateResearchStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'ids' => 'required|array',
+            'ids.*' => 'exists:research,id',
+            'status' => 'required|in:pending,approved,rejected'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $updatedCount = Research::whereIn('id', $request->ids)
+                ->update(['status' => $request->status]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$updatedCount} research(es) updated successfully",
+                'data' => [
+                    'updated_count' => $updatedCount,
+                    'status' => $request->status
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update statuses: ' . $e->getMessage()
+            ], 500);
         }
     }
 

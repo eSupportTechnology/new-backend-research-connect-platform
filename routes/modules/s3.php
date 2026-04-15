@@ -41,6 +41,7 @@ Route::prefix('research')->group(function () {
     Route::get('/{id}', [UploadController::class, 'getResearch']);
     Route::get('/{id}/download', [UploadController::class, 'downloadResearch']);
     Route::put('/{id}/status', [UploadController::class, 'updateResearchStatus']);
+    Route::post('/bulk-status', [UploadController::class, 'bulkUpdateResearchStatus']);
 });
 
 Route::prefix('innovation')->group(function () {
