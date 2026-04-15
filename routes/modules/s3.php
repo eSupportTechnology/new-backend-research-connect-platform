@@ -69,6 +69,10 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
     Route::delete('/innovation-comments/{id}', [InnovationCommentController::class, 'adminDestroy']);
     Route::get('/research-comments', [ResearchCommentController::class, 'adminIndex']);
     Route::delete('/research-comments/{id}', [ResearchCommentController::class, 'adminDestroy']);
+
+    // Content Removal
+    Route::delete('/innovations/{id}', [UploadController::class, 'adminDestroyInnovation']);
+    Route::delete('/research/{id}', [UploadController::class, 'adminDestroyResearch']);
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {

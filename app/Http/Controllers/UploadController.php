@@ -1089,4 +1089,68 @@ class UploadController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Remove Innovation (admin only)
+     */
+    public function adminDestroyInnovation($id)
+    {
+        try {
+            $innovation = Innovation::findOrFail($id);
+
+            // 1. Delete files from S3
+            if ($innovation->video_url) {
+                $this->deleteFileByUrl($innovation->video_url);
+            }
+            if ($innovation->thumbnail) {
+                $this->deleteFileByUrl($innovation->thumbnail);
+            }
+
+            // 2. Delete DB record (Relations will cascade if set, or just delete the main item)
+            $innovation->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Innovation and associated files removed successfully'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove innovation: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove Research (admin only)
+     */
+    public function adminDestroyResearch($id)
+    {
+        try {
+            $research = Research::findOrFail($id);
+
+            // 1. Delete files from S3
+            if ($research->document_url) {
+                $this->deleteFileByUrl($research->document_url);
+            }
+            if ($research->thumbnail) {
+                $this->deleteFileByUrl($research->thumbnail);
+            }
+
+            // 2. Delete DB record
+            $research->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Research paper and associated files removed successfully'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove research: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
