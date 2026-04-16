@@ -133,6 +133,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Cards::class, 'user_id');
     }
+    public function bankDetails()
+    {
+        return $this->hasMany(\App\Models\Profile\BankDetail::class, 'user_id');
+    }
     public function innovations()
     {
         return $this->hasMany(Innovation::class);

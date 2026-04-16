@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AdvertisementController;
+use App\Http\Controllers\UserAdvertisementController;
+use App\Http\Controllers\PayHereController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -19,13 +21,27 @@ Route::prefix('advertisements')->group(function () {
     // Track engagement
     Route::post('/{id}/impression', [AdvertisementController::class, 'recordImpression']);
     Route::post('/{id}/click', [AdvertisementController::class, 'recordClick']);
+
+    // PayHere Webhook
+    Route::post('/payhere/notify', [PayHereController::class, 'notify'])->name('payhere.notify');
+});
+
+// User routes - Requires authentication
+Route::middleware(['auth:sanctum'])->prefix('user/advertisements')->group(function () {
+    Route::get('/', [UserAdvertisementController::class, 'index']);
+    Route::post('/', [UserAdvertisementController::class, 'store']);
+    Route::get('/{id}/payment-params', [UserAdvertisementController::class, 'getPaymentParams']);
 });
 
 // Admin routes - Requires authentication
 Route::middleware(['auth:sanctum'])->prefix('admin/advertisements')->group(function () {
     Route::get('/', [AdvertisementController::class, 'adminIndex']); // NEW: Get all ads for admin
     Route::post('/', [AdvertisementController::class, 'store']);
-    Route::put('/{id}', [AdvertisementController::class, 'update']); // Changed from PUT to POST for _method support
+    Route::put('/{id}', [AdvertisementController::class, 'update']); 
     Route::delete('/{id}', [AdvertisementController::class, 'destroy']);
     Route::get('/analytics', [AdvertisementController::class, 'analytics']);
+
+    // Review actions
+    Route::post('/{id}/approve', [AdvertisementController::class, 'approve']);
+    Route::post('/{id}/reject', [AdvertisementController::class, 'reject']);
 });

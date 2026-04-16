@@ -12,6 +12,7 @@ class Advertisement extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'user_id',
         'type',
         'position',
         'badge',
@@ -24,6 +25,11 @@ class Advertisement extends Model
         'color',
         'order',
         'is_active',
+        'status',
+        'payment_status',
+        'payment_id',
+        'price',
+        'rejection_reason',
         'start_date',
         'end_date',
         'max_impressions',
@@ -64,8 +70,10 @@ class Advertisement extends Model
         $currentTime = $now->format('H:i:s');
 
         return $query
-            // Must be active
+            // Must be active and paid
             ->where('is_active', true)
+            ->where('status', 'active')
+            ->where('payment_status', 'paid')
 
             // Date range — start
             ->where(function ($q) use ($now) {
@@ -203,5 +211,13 @@ class Advertisement extends Model
         $end   = $this->formatted_end_time   ?? '23:59';
 
         return "{$start} - {$end}";
+    }
+
+    /**
+     * Relationship to User
+     */
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\User::class);
     }
 }

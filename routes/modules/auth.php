@@ -48,6 +48,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/cards/{id}/default', [CardController::class, 'setDefault']);
     });
 
+    //Bank Details
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/bank-details', [\App\Http\Controllers\BankDetailController::class, 'index']);
+        Route::post('/bank-details', [\App\Http\Controllers\BankDetailController::class, 'store']);
+        Route::delete('/bank-details/{id}', [\App\Http\Controllers\BankDetailController::class, 'destroy']);
+        Route::post('/bank-details/{id}/default', [\App\Http\Controllers\BankDetailController::class, 'setDefault']);
+    });
+
     //Shipping Address
     Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('shipping-addresses', ShippingAddressController::class);
