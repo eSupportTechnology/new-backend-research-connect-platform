@@ -66,8 +66,7 @@ class AdvertisementController extends Controller
      */
     public function adminIndex()
     {
-        $ads = Advertisement::withTrashed() // Include soft deleted if needed
-        ->orderBy('created_at', 'desc')
+        $ads = Advertisement::orderBy('created_at', 'desc')
             ->orderBy('order', 'asc')
             ->get()
             ->map(function ($ad) {
@@ -250,7 +249,7 @@ class AdvertisementController extends Controller
 
         // Handle image upload
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('advertisements', 'public');
+            $path = $request->file('image')->store('advertisements', 's3');
             $data['image_path'] = $path;
         }
 
@@ -316,11 +315,11 @@ class AdvertisementController extends Controller
 
         // Handle image upload
         if ($request->hasFile('image')) {
-            // Delete old image
+            // Delete old image from S3
             if ($ad->image_path) {
-                Storage::disk('public')->delete($ad->image_path);
+                Storage::disk('s3')->delete($ad->image_path);
             }
-            $path = $request->file('image')->store('advertisements', 'public');
+            $path = $request->file('image')->store('advertisements', 's3');
             $data['image_path'] = $path;
         }
 
@@ -355,9 +354,9 @@ class AdvertisementController extends Controller
             ], 404);
         }
 
-        // Delete image
+        // Delete image from S3
         if ($ad->image_path) {
-            Storage::disk('public')->delete($ad->image_path);
+            Storage::disk('s3')->delete($ad->image_path);
         }
 
         $ad->delete();
@@ -373,8 +372,7 @@ class AdvertisementController extends Controller
      */
     public function analytics()
     {
-        $ads = Advertisement::withTrashed()->get();
-
+        $ads = Advertisement::all();
         $analytics = $ads->map(function ($ad) {
             $ctr = $ad->current_impressions > 0
                 ? ($ad->clicks / $ad->current_impressions) * 100

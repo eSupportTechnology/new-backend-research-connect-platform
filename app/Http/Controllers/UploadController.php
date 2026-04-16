@@ -771,6 +771,11 @@ class UploadController extends Controller
     /**
      * Update research status (admin only)
      */
+
+
+    /**
+     * Bulk update research status (admin only)
+     */
     public function updateResearchStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
@@ -798,6 +803,44 @@ class UploadController extends Controller
                 'success' => false,
                 'message' => 'Research not found'
             ], 404);
+        }
+    }
+
+    /**
+     * Bulk update research status (admin only)
+     */
+    public function bulkUpdateResearchStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'ids' => 'required|array',
+            'ids.*' => 'exists:research,id',
+            'status' => 'required|in:pending,approved,rejected'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $updatedCount = Research::whereIn('id', $request->ids)
+                ->update(['status' => $request->status]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$updatedCount} research(es) updated successfully",
+                'data' => [
+                    'updated_count' => $updatedCount,
+                    'status' => $request->status
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update statuses: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -1043,6 +1086,70 @@ class UploadController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Delete failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove Innovation (admin only)
+     */
+    public function adminDestroyInnovation($id)
+    {
+        try {
+            $innovation = Innovation::findOrFail($id);
+
+            // 1. Delete files from S3
+            if ($innovation->video_url) {
+                $this->deleteFileByUrl($innovation->video_url);
+            }
+            if ($innovation->thumbnail) {
+                $this->deleteFileByUrl($innovation->thumbnail);
+            }
+
+            // 2. Delete DB record (Relations will cascade if set, or just delete the main item)
+            $innovation->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Innovation and associated files removed successfully'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove innovation: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove Research (admin only)
+     */
+    public function adminDestroyResearch($id)
+    {
+        try {
+            $research = Research::findOrFail($id);
+
+            // 1. Delete files from S3
+            if ($research->document_url) {
+                $this->deleteFileByUrl($research->document_url);
+            }
+            if ($research->thumbnail) {
+                $this->deleteFileByUrl($research->thumbnail);
+            }
+
+            // 2. Delete DB record
+            $research->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Research paper and associated files removed successfully'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove research: ' . $e->getMessage()
             ], 500);
         }
     }

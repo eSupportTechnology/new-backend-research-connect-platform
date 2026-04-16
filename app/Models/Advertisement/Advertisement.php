@@ -5,6 +5,7 @@ namespace App\Models\Advertisement;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Advertisement extends Model
 {
@@ -168,7 +169,7 @@ class Advertisement extends Model
      */
     public function getImageUrlAttribute()
     {
-        return asset('storage/' . $this->image_path);
+        return $this->image_path ? Storage::disk('s3')->url($this->image_path) : null;
     }
 
     /**

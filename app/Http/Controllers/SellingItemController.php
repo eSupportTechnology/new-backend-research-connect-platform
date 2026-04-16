@@ -453,7 +453,74 @@ class SellingItemController extends Controller
     }
 
     /**
-     * Get single selling item details
+     * Get single selling item details for public view
+     */
+    public function show($id)
+    {
+        try {
+            $item = SellingItem::with(['user:id,first_name,last_name,email', 'sellable'])
+                ->where('status', 'active')
+                ->findOrFail($id);
+
+            // Get stats from sellable (Innovation or Research)
+            $stats = [
+                'average_rating' => 0,
+                'total_ratings' => 0,
+                'rating_breakdown' => [
+                    5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0
+                ]
+            ];
+
+            if ($item->sellable_type && $item->sellable_id) {
+                $isInnovation = str_contains($item->sellable_type, 'Innovation');
+                $commentModel = $isInnovation 
+                    ? \App\Models\Innovation\InnovationComment::class 
+                    : \App\Models\Research\ResearchComment::class;
+                $foreignKey = $isInnovation ? 'innovation_id' : 'research_id';
+
+                $rawStats = $commentModel::where($foreignKey, $item->sellable_id)
+                    ->selectRaw('
+                        AVG(rating) as average_rating,
+                        COUNT(*) as total_ratings,
+                        SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as five_star,
+                        SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as four_star,
+                        SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as three_star,
+                        SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as two_star,
+                        SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as one_star
+                    ')
+                    ->first();
+
+                if ($rawStats) {
+                    $stats = [
+                        'average_rating' => round($rawStats->average_rating ?? 0, 1),
+                        'total_ratings' => (int)($rawStats->total_ratings ?? 0),
+                        'rating_breakdown' => [
+                            5 => (int)($rawStats->five_star ?? 0),
+                            4 => (int)($rawStats->four_star ?? 0),
+                            3 => (int)($rawStats->three_star ?? 0),
+                            2 => (int)($rawStats->two_star ?? 0),
+                            1 => (int)($rawStats->one_star ?? 0),
+                        ],
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $item,
+                'stats' => $stats
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found: ' . $e->getMessage()
+            ], 404);
+        }
+    }
+
+    /**
+     * Get single selling item details for the owner
      */
     public function getSellingItem($id)
     {

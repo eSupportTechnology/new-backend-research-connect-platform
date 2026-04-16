@@ -22,7 +22,7 @@ class User extends Authenticatable
      */
     protected $keyType = 'string';
     public $incrementing = false;
-    protected $appends = ['follower_count', 'following_count'];
+    protected $appends = ['follower_count', 'following_count', 'innovation_count', 'research_count'];
     /**
      * Mass assignable fields
      */
@@ -137,6 +137,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Innovation::class);
     }
+    public function researches()
+    {
+        return $this->hasMany(\App\Models\Research\Research::class);
+    }
     /*
     |--------------------------------------------------------------------------
     | Accessors
@@ -173,5 +177,13 @@ class User extends Authenticatable
     public function getFullNameAttribute()
     {
         return $this->first_name . ' ' . $this->last_name;
+    }
+    public function getInnovationCountAttribute()
+    {
+        return $this->innovations()->count();
+    }
+    public function getResearchCountAttribute()
+    {
+        return $this->researches()->count();
     }
 }

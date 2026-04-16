@@ -210,8 +210,8 @@ class ProfileController extends Controller
 
         $this->deleteFromS3($profile->profile_image);
 
-        // ✅ No visibility/ACL
-        $path = Storage::disk('s3')->putFile('profiles', $request->file('profile_image'));
+        // ✅ Set public visibility
+        $path = Storage::disk('s3')->putFile('profiles', $request->file('profile_image'), 'public');
 
         if (!$path) {
             return response()->json(['success' => false, 'message' => 'Failed to upload image to S3'], 500);
@@ -240,8 +240,8 @@ class ProfileController extends Controller
 
         $this->deleteFromS3($profile->cover_image);
 
-        // ✅ No visibility/ACL
-        $path = Storage::disk('s3')->putFile('covers', $request->file('cover_image'));
+        // ✅ Set public visibility
+        $path = Storage::disk('s3')->putFile('covers', $request->file('cover_image'), 'public');
 
         if (!$path) {
             return response()->json(['success' => false, 'message' => 'Failed to upload cover image to S3'], 500);

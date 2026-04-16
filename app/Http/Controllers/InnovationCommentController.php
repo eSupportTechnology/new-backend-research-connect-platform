@@ -347,4 +347,85 @@ class InnovationCommentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get all innovation comments (admin only)
+     */
+    public function adminIndex(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 10);
+            $search = $request->get('search');
+
+            $query = InnovationComment::with([
+                'user:id,first_name,last_name,email', 
+                'user.profile:id,user_id,profile_image',
+                'innovation:id,title'
+            ]);
+
+            if ($search) {
+                $query->where('text', 'like', "%{$search}%")
+                    ->orWhereHas('user', function($q) use ($search) {
+                        $q->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('innovation', function($q) use ($search) {
+                        $q->where('title', 'like', "%{$search}%");
+                    });
+            }
+
+            $comments = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+            $comments->getCollection()->transform(function ($comment) {
+                return [
+                    'id' => $comment->id,
+                    'text' => $comment->text,
+                    'rating' => $comment->rating,
+                    'date' => $comment->created_at->format('M d, Y'),
+                    'author' => $comment->user ? ($comment->user->first_name . ' ' . $comment->user->last_name) : 'Unknown User',
+                    'author_email' => $comment->user ? $comment->user->email : null,
+                    'author_image' => $comment->user && $comment->user->profile ? $comment->user->profile->profile_image_url : null,
+                    'innovation_title' => $comment->innovation ? $comment->innovation->title : 'Deleted Innovation',
+                    'innovation_id' => $comment->innovation_id,
+                    'created_at' => $comment->created_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $comments,
+            ], 200);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch comments',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Admin delete comment
+     */
+    public function adminDestroy($id)
+    {
+        try {
+            $comment = InnovationComment::findOrFail($id);
+            $comment->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Comment removed by administrator',
+            ], 200);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove comment',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
