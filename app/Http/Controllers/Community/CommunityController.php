@@ -82,19 +82,31 @@ class CommunityController extends Controller
     {
         try {
             $validated = $request->validate([
-                'type' => 'required|in:research,discussion',
+                'type' => 'required|in:research,discussion,event',
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
                 'full_content' => 'nullable|string',
                 'category' => 'nullable|string|max:255',
                 'location' => 'nullable|string|max:255',
-                'tags' => 'nullable|string', // Expecting JSON string or comma-separated
+                'tags' => 'nullable|string', 
                 'is_recruiting' => 'boolean',
-                'image_file' => 'nullable|image|max:10240', // 10MB
+                'image_file' => 'nullable|image|max:10240',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date',
+                'start_time' => 'nullable|string',
+                'end_time' => 'nullable|string',
+                'registration_url' => 'nullable|string|url',
             ]);
 
             $data = $validated;
             $data['user_id'] = auth()->id();
+            
+            // Map post category to migration 'type'
+            if ($request->category === 'research') {
+                $data['type'] = 'research';
+            } elseif ($request->category === 'event') {
+                $data['type'] = 'event';
+            }
             
             // Handle tags
             if ($request->has('tags')) {

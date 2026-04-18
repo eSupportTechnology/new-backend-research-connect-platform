@@ -20,6 +20,11 @@ class CommunityPost extends Model
         'image_url',
         'location',
         'tags',
+        'start_date',
+        'end_date',
+        'start_time',
+        'end_time',
+        'registration_url',
         'is_recruiting',
         'status',
     ];
