@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\SuperAdminController;
+use App\Http\Controllers\Cms\HubCardController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
@@ -10,7 +11,14 @@ Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
     // Leaderboard Management
     Route::get('/users-by-contribution', [SuperAdminController::class, 'getUsersByContribution']);
     Route::post('/users/{id}/toggle-best', [SuperAdminController::class, 'toggleBestStatus']);
+
+    // CMS - Hub Cards
+    Route::get('/hub-cards', [HubCardController::class, 'index']);
+    Route::post('/hub-cards/{id}', [HubCardController::class, 'update']);
 });
+
+// Public CMS data
+Route::get('/public/hub-cards', [HubCardController::class, 'index']);
 
 // Public featured performers
 Route::get('/public/featured-performers', [SuperAdminController::class, 'getFeaturedPerformers']);
