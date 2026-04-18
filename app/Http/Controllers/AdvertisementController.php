@@ -144,8 +144,6 @@ class AdvertisementController extends Controller
      */
     public function getCarouselAds()
     {
-        $now = Carbon::now();
-
         $ads = Advertisement::active()
             ->ofType('carousel')
             ->orderBy('order', 'asc')
@@ -154,11 +152,16 @@ class AdvertisementController extends Controller
                 return [
                     'id' => $ad->id,
                     'name' => $ad->title,
+                    'title' => $ad->title,
                     'desc' => $ad->description,
+                    'description' => $ad->description,
                     'icon' => $ad->image_url,
+                    'image' => $ad->image_url,
                     'color' => $ad->color ?? '#e53e3e',
                     'btnText' => $ad->cta_text,
+                    'cta_text' => $ad->cta_text,
                     'link' => $ad->cta_link,
+                    'cta_link' => $ad->cta_link,
                 ];
             });
 
@@ -397,6 +400,70 @@ class AdvertisementController extends Controller
         return response()->json([
             'success' => true,
             'data' => $analytics,
+        ]);
+    }
+
+    /**
+     * Approve an advertisement request
+     */
+    public function approve(Request $request, $id)
+    {
+        $ad = Advertisement::find($id);
+
+        if (!$ad) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Advertisement not found',
+            ], 404);
+        }
+
+        $ad->update([
+            'status' => 'active',
+            'is_active' => true,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Advertisement approved successfully',
+            'data' => $ad,
+        ]);
+    }
+
+    /**
+     * Reject an advertisement request
+     */
+    public function reject(Request $request, $id)
+    {
+        $ad = Advertisement::find($id);
+
+        if (!$ad) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Advertisement not found',
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'reason' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $ad->update([
+            'status' => 'rejected',
+            'is_active' => false,
+            'rejection_reason' => $request->reason,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Advertisement rejected successfully',
+            'data' => $ad,
         ]);
     }
 }
