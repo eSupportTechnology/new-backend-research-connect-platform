@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum'])->prefix('user/advertisements')->group(functi
 // Admin routes - Requires authentication
 Route::middleware(['auth:sanctum'])->prefix('admin/advertisements')->group(function () {
     Route::get('/', [AdvertisementController::class, 'adminIndex']); // NEW: Get all ads for admin
+    Route::post('/bulk', [AdvertisementController::class, 'bulkAction']); // NEW: Bulk actions
     Route::post('/', [AdvertisementController::class, 'store']);
     Route::put('/{id}', [AdvertisementController::class, 'update']); 
     Route::delete('/{id}', [AdvertisementController::class, 'destroy']);

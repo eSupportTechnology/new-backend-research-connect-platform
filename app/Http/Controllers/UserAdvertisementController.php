@@ -123,10 +123,10 @@ class UserAdvertisementController extends Controller
             ], 400);
         }
 
-        $merchant_id = env('PAYHERE_MERCHANT_ID');
-        $merchant_secret = env('PAYHERE_MERCHANT_SECRET');
+        $merchant_id = trim(config('services.payhere.merchant_id'));
+        $merchant_secret = trim(config('services.payhere.merchant_secret'));
         $order_id = 'AD-' . $ad->id . '-' . time();
-        $amount = $ad->price;
+        $amount = number_format($ad->price, 2, '.', '');
         $currency = 'LKR';
 
         // Generate Hash
@@ -134,34 +134,43 @@ class UserAdvertisementController extends Controller
             md5(
                 $merchant_id . 
                 $order_id . 
-                number_format($amount, 2, '.', '') . 
+                $amount . 
                 $currency . 
                 strtoupper(md5($merchant_secret))
             )
         );
 
+        \Illuminate\Support\Facades\Log::info("PayHere Hash Debug:", [
+            'mid' => $merchant_id,
+            'oid' => $order_id,
+            'amt' => $amount,
+            'cur' => $currency,
+            'hash' => $hash
+        ]);
+
         return response()->json([
             'success' => true,
             'data' => [
+                'sandbox' => true,
                 'merchant_id' => $merchant_id,
                 'order_id' => $order_id,
                 'items' => "Advertisement - " . ucfirst($ad->type),
                 'amount' => $amount,
                 'currency' => $currency,
                 'hash' => $hash,
-                'first_name' => $request->user()->first_name ?? $request->user()->name,
-                'last_name' => $request->user()->last_name ?? '',
-                'email' => $request->user()->email,
-                'phone' => $request->user()->phone ?? '',
-                'address' => '',
-                'city' => '',
+                'first_name' => $request->user()->first_name ?? $request->user()->name ?? 'Test',
+                'last_name' => $request->user()->last_name ?? 'User',
+                'email' => $request->user()->email ?? 'test@example.com',
+                'phone' => $request->user()->phone ?? '0771234567',
+                'address' => 'No 1, Galle Road',
+                'city' => 'Colombo',
                 'country' => 'Sri Lanka',
-                'delivery_address' => '',
-                'delivery_city' => '',
+                'delivery_address' => 'No 1, Galle Road',
+                'delivery_city' => 'Colombo',
                 'delivery_country' => 'Sri Lanka',
-                'notify_url' => route('payhere.notify'),
-                'return_url' => url('/profile/ads?status=success'),
-                'cancel_url' => url('/profile/ads?status=cancel'),
+                'notify_url' => url('/api/advertisements/payhere/notify'),
+                'return_url' => 'http://localhost:5173/profile/ads?status=success',
+                'cancel_url' => 'http://localhost:5173/profile/ads?status=cancel',
             ],
         ]);
     }
