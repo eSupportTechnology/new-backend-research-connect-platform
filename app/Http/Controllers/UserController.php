@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\RegisterUsers\User;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -169,6 +170,7 @@ class UserController extends Controller
         try {
 
             $user = User::findOrFail($id);
+            AuditLog::logAction('USER_DELETE', "Deleted user: {$user->email}");
             $user->delete();
 
             return response()->json([
@@ -198,6 +200,8 @@ class UserController extends Controller
 
             $user->status = $user->status === 'Active' ? 'Inactive' : 'Active';
             $user->save();
+
+            AuditLog::logAction('USER_STATUS_TOGGLE', "Changed status of {$user->email} to {$user->status}");
 
             return response()->json([
                 'message' => 'User status updated',
@@ -245,6 +249,8 @@ class UserController extends Controller
                     'status' => 'Inactive'
                 ]);
             }
+
+            AuditLog::logAction('BULK_USER_ACTION', "Performed {$request->action} on " . count($request->ids) . " users text-center");
 
             return response()->json([
                 'message' => 'Bulk action completed successfully'

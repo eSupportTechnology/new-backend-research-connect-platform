@@ -31,11 +31,13 @@ Route::middleware(['auth:sanctum'])->prefix('user/advertisements')->group(functi
     Route::get('/', [UserAdvertisementController::class, 'index']);
     Route::post('/', [UserAdvertisementController::class, 'store']);
     Route::get('/{id}/payment-params', [UserAdvertisementController::class, 'getPaymentParams']);
+    Route::get('/{id}/verify-payment', [UserAdvertisementController::class, 'verifyPayment']); // NEW
 });
 
 // Admin routes - Requires authentication
 Route::middleware(['auth:sanctum'])->prefix('admin/advertisements')->group(function () {
     Route::get('/', [AdvertisementController::class, 'adminIndex']); // NEW: Get all ads for admin
+    Route::post('/bulk', [AdvertisementController::class, 'bulkAction']); // NEW: Bulk actions
     Route::post('/', [AdvertisementController::class, 'store']);
     Route::put('/{id}', [AdvertisementController::class, 'update']); 
     Route::delete('/{id}', [AdvertisementController::class, 'destroy']);

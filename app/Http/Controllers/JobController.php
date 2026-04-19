@@ -72,7 +72,7 @@ class JobController extends Controller
             }
 
             // If user is admin, auto-approve. Otherwise pending.
-            $status = (auth()->user()->role === 'admin' || auth()->user()->role === 'super_admin') ? 'approved' : 'pending';
+            $status = (auth()->user()->role === 'admin' || auth()->user()->role === 'super_admin' || auth()->user()->role === 'superadmin') ? 'approved' : 'pending';
 
             $job = Career::create([
                 'user_id' => auth()->id(),
@@ -149,7 +149,7 @@ class JobController extends Controller
     {
         $query = Career::with('user');
 
-        if ($request->has('status')) {
+        if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
@@ -167,7 +167,8 @@ class JobController extends Controller
             $job = Career::findOrFail($id);
 
             // Access check: Admin or the owner
-            if (auth()->user()->role !== 'admin' && auth()->user()->role !== 'super_admin' && auth()->id() !== $job->user_id) {
+            $userRole = auth()->user()->role;
+            if ($userRole !== 'admin' && $userRole !== 'super_admin' && $userRole !== 'superadmin' && auth()->id() !== $job->user_id) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
             }
 
@@ -189,11 +190,34 @@ class JobController extends Controller
     private function uploadFile($file, $directory)
     {
         $filename = time() . '_' . Str::random(10) . '.' . $file->getClientOriginalExtension();
-        $path = "{$directory}/{$filename}";
+        $path = $directory . '/' . $filename;
 
-        Storage::disk('s3')->put($path, fopen($file->getRealPath(), 'r'), 'public');
+        try {
+            $s3Client = new \Aws\S3\S3Client([
+                'region' => config('filesystems.disks.s3.region'),
+                'version' => 'latest',
+                'credentials' => [
+                    'key' => config('filesystems.disks.s3.key'),
+                    'secret' => config('filesystems.disks.s3.secret'),
+                ],
+                'http' => [
+                    'verify' => false,
+                ]
+            ]);
 
-        return Storage::disk('s3')->url($path);
+            $result = $s3Client->putObject([
+                'Bucket' => config('filesystems.disks.s3.bucket'),
+                'Key' => $path,
+                'Body' => file_get_contents($file),
+                'ContentType' => $file->getMimeType(),
+            ]);
+
+            return $result['ObjectURL'];
+
+        } catch (\Exception $e) {
+            Log::error('Job Logo Upload Error: ' . $e->getMessage());
+            throw new \Exception('Failed to upload file to S3: ' . $e->getMessage());
+        }
     }
 
     private function deleteFileByUrl($url)
@@ -202,14 +226,29 @@ class JobController extends Controller
             $parsedUrl = parse_url($url);
             $path = isset($parsedUrl['path']) ? ltrim($parsedUrl['path'], '/') : '';
             
-            // If the URL contains the bucket name in the path (path-style), remove it
+            // If the URL contains the bucket name in the path, remove it
             $bucket = config('filesystems.disks.s3.bucket');
             if (str_starts_with($path, $bucket . '/')) {
                 $path = substr($path, strlen($bucket) + 1);
             }
 
             if ($path) {
-                Storage::disk('s3')->delete($path);
+                $s3Client = new \Aws\S3\S3Client([
+                    'region' => config('filesystems.disks.s3.region'),
+                    'version' => 'latest',
+                    'credentials' => [
+                        'key' => config('filesystems.disks.s3.key'),
+                        'secret' => config('filesystems.disks.s3.secret'),
+                    ],
+                    'http' => [
+                        'verify' => false,
+                    ]
+                ]);
+
+                $s3Client->deleteObject([
+                    'Bucket' => $bucket,
+                    'Key' => $path,
+                ]);
             }
         } catch (\Exception $e) {
             Log::error('S3 Delete Error: ' . $e->getMessage());

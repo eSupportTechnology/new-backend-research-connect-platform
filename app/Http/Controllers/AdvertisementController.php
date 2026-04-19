@@ -466,4 +466,52 @@ class AdvertisementController extends Controller
             'data' => $ad,
         ]);
     }
+
+    /**
+     * Perform bulk actions on advertisements (Admin)
+     */
+    public function bulkAction(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:advertisements,id',
+            'action' => 'required|in:delete,activate,deactivate',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $ids = $request->ids;
+        $action = $request->action;
+
+        $ads = Advertisement::whereIn('id', $ids)->get();
+        $processedCount = 0;
+
+        foreach ($ads as $ad) {
+            switch ($action) {
+                case 'delete':
+                    if ($ad->image_path) {
+                        Storage::disk('s3')->delete($ad->image_path);
+                    }
+                    $ad->delete();
+                    break;
+                case 'activate':
+                    $ad->update(['is_active' => true]);
+                    break;
+                case 'deactivate':
+                    $ad->update(['is_active' => false]);
+                    break;
+            }
+            $processedCount++;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Successfully processed {$processedCount} advertisements.",
+        ]);
+    }
 }
