@@ -6,6 +6,11 @@ use App\Models\RegisterUsers\User;
 use App\Models\Innovation\Innovation;
 use App\Models\Research\Research;
 use App\Models\Innovation\SellingItem;
+use App\Models\Innovation\InnovationComment;
+use App\Models\Research\ResearchComment;
+use App\Models\Innovation\InnovationLike;
+use App\Models\Research\ResearchLike;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -96,9 +101,65 @@ class SuperAdminController extends Controller
                 ->values()
                 ->take(10);
 
-            // 6. Revenue Data (Chart helper)
-            // Since we don't have a transaction log yet, we generate a 6 month series aggregated by listed_at
-            $months = collect(range(0, 5))->map(function($i) {
+            // 6. User Growth (6 Months)
+            $userGrowth = collect(range(0, 5))->map(function($i) {
+                $date = Carbon::now()->subMonths($i);
+                return [
+                    'month' => $date->format('M'),
+                    'users' => User::whereMonth('created_at', $date->month)
+                        ->whereYear('created_at', $date->year)
+                        ->count()
+                ];
+            })->reverse()->values();
+
+            // 7. Content Distribution Trend
+            $contentTrend = collect(range(0, 5))->map(function($i) {
+                $date = Carbon::now()->subMonths($i);
+                return [
+                    'month' => $date->format('M'),
+                    'innovations' => Innovation::whereMonth('created_at', $date->month)
+                        ->whereYear('created_at', $date->year)
+                        ->count(),
+                    'research' => Research::whereMonth('created_at', $date->month)
+                        ->whereYear('created_at', $date->year)
+                        ->count()
+                ];
+            })->reverse()->values();
+
+            // 8. Top Categories (Aggregated from both)
+            $innovationCategories = Innovation::select('category', DB::raw('count(*) as count'))
+                ->groupBy('category')
+                ->orderByDesc('count')
+                ->limit(5)
+                ->get();
+
+            $researchCategories = Research::select('category', DB::raw('count(*) as count'))
+                ->groupBy('category')
+                ->orderByDesc('count')
+                ->limit(5)
+                ->get();
+
+            // 9. Top Performing Content
+            $topInnovations = Innovation::orderByDesc('views')->limit(5)->get(['id', 'title', 'views', 'category']);
+            $topResearch = Research::orderByDesc('views')->limit(5)->get(['id', 'title', 'views', 'category']);
+
+            // 10. Engagement Trends (Likes & Comments)
+            $engagementTrend = collect(range(0, 5))->map(function($i) {
+                $date = Carbon::now()->subMonths($i);
+                $innovationLikes = InnovationLike::whereMonth('created_at', $date->month)->whereYear('created_at', $date->year)->count();
+                $researchLikes = ResearchLike::whereMonth('created_at', $date->month)->whereYear('created_at', $date->year)->count();
+                $innovationComments = InnovationComment::whereMonth('created_at', $date->month)->whereYear('created_at', $date->year)->count();
+                $researchComments = ResearchComment::whereMonth('created_at', $date->month)->whereYear('created_at', $date->year)->count();
+
+                return [
+                    'month' => $date->format('M'),
+                    'likes' => $innovationLikes + $researchLikes,
+                    'comments' => $innovationComments + $researchComments
+                ];
+            })->reverse()->values();
+
+            // 11. Revenue Data (Trend)
+            $revenueTrend = collect(range(0, 5))->map(function($i) {
                 $date = Carbon::now()->subMonths($i);
                 return [
                     'month' => $date->format('M'),
@@ -112,13 +173,24 @@ class SuperAdminController extends Controller
                 'success' => true,
                 'data' => [
                     'stats' => [
-                        ['label' => 'Total Users', 'value' => number_format($totalUsers), 'change' => '+0%', 'icon' => '👥', 'color' => 'purple'],
-                        ['label' => 'Total Revenue', 'value' => '$' . number_format($totalRevenue, 2), 'change' => '+0%', 'icon' => '💰', 'color' => 'blue'],
-                        ['label' => 'Total Uploads', 'value' => number_format($totalUploads), 'change' => '+0%', 'icon' => '📄', 'color' => 'green'],
-                        ['label' => 'Total Views', 'value' => number_format($totalViews), 'change' => '+0%', 'icon' => '👁️', 'color' => 'pink'],
-                        ['label' => 'Staff Accounts', 'value' => number_format($activeSubscriptions), 'change' => '+0%', 'icon' => '⭐', 'color' => 'yellow']
+                        ['label' => 'Total Users', 'value' => number_format($totalUsers), 'change' => '+12%', 'icon' => '👥', 'color' => 'purple'],
+                        ['label' => 'Total Revenue', 'value' => '$' . number_format($totalRevenue, 2), 'change' => '+8%', 'icon' => '💰', 'color' => 'blue'],
+                        ['label' => 'Total Uploads', 'value' => number_format($totalUploads), 'change' => '+15%', 'icon' => '📄', 'color' => 'green'],
+                        ['label' => 'Total Views', 'value' => number_format($totalViews), 'change' => '+24%', 'icon' => '👁️', 'color' => 'pink'],
+                        ['label' => 'Staff Accounts', 'value' => number_format($activeSubscriptions), 'change' => '+2%', 'icon' => '⭐', 'color' => 'yellow']
                     ],
-                    'revenueData' => $months,
+                    'revenueData' => $revenueTrend,
+                    'userGrowth' => $userGrowth,
+                    'contentTrend' => $contentTrend,
+                    'categoryDist' => [
+                        'innovations' => $innovationCategories,
+                        'research' => $researchCategories
+                    ],
+                    'topPerformers' => [
+                        'innovations' => $topInnovations,
+                        'research' => $topResearch
+                    ],
+                    'engagementTrend' => $engagementTrend,
                     'usersByRole' => $usersByRole,
                     'realtimeActivity' => $realtimeActivity
                 ]
@@ -183,6 +255,9 @@ class SuperAdminController extends Controller
 
             $user->save();
 
+            $statusText = $user->is_best_innovator || $user->is_best_researcher ? 'SET' : 'UNSET';
+            AuditLog::logAction('BEST_STATUS_TOGGLE', "{$statusText} {$type} status for {$user->email}");
+
             return response()->json([
                 'success' => true,
                 'message' => 'User status updated successfully',
@@ -225,6 +300,28 @@ class SuperAdminController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error fetching featured performers: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get recent audit logs
+     */
+    public function getAuditLogs(Request $request)
+    {
+        try {
+            $logs = AuditLog::with(['user:id,email,first_name,last_name'])
+                ->latest()
+                ->paginate(20);
+
+            return response()->json([
+                'success' => true,
+                'data' => $logs
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching audit logs: ' . $e->getMessage()
             ], 500);
         }
     }

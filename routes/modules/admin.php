@@ -15,6 +15,9 @@ Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
     // CMS - Hub Cards
     Route::get('/hub-cards', [HubCardController::class, 'index']);
     Route::post('/hub-cards/{id}', [HubCardController::class, 'update']);
+
+    // Audit Logs
+    Route::get('/audit-logs', [SuperAdminController::class, 'getAuditLogs']);
 });
 
 // Public CMS data
