@@ -35,10 +35,9 @@ class PayHereController extends Controller
         );
 
         if ($local_md5sig === $md5sig) {
-            // Extract Ad ID from order_id
-            $parts = explode('-', $order_id);
-            if (isset($parts[1])) {
-                $ad_id = $parts[1];
+            // Extract Ad ID from order_id using regex (handles format: AD{id}T{timestamp})
+            if (preg_match('/AD(\d+)T/', $order_id, $matches)) {
+                $ad_id = $matches[1];
                 $ad = Advertisement::find($ad_id);
 
                 if ($ad) {

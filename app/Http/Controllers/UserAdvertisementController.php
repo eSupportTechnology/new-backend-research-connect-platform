@@ -125,7 +125,8 @@ class UserAdvertisementController extends Controller
 
         $merchant_id = trim(config('services.payhere.merchant_id'));
         $merchant_secret = trim(config('services.payhere.merchant_secret'));
-        $order_id = 'AD-' . $ad->id . '-' . time();
+        // Simpler order_id format to avoid any potential parsing issues in PayHere
+        $order_id = 'AD' . $ad->id . 'T' . time(); 
         $amount = number_format($ad->price, 2, '.', '');
         $currency = 'LKR';
 
@@ -172,6 +173,31 @@ class UserAdvertisementController extends Controller
                 'return_url' => 'http://localhost:5173/profile/ads?status=success',
                 'cancel_url' => 'http://localhost:5173/profile/ads?status=cancel',
             ],
+        ]);
+    }
+
+    /**
+     * Manually verify payment (Workaround for localhost development)
+     */
+    public function verifyPayment($id)
+    {
+        $ad = Advertisement::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
+
+        // In a real environment, we'd check against PayHere API here.
+        // For localhost sandbox testing, we'll trust the return redirect if it's currently unpaid.
+        if ($ad->payment_status !== 'paid') {
+            $ad->update([
+                'payment_status' => 'paid',
+                'payment_id' => 'SANDBOX-' . time(), // Mock payment ID for dev
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment status updated (Dev Mode)',
+            'data' => $ad
         ]);
     }
 }

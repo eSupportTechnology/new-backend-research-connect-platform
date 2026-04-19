@@ -31,6 +31,7 @@ Route::middleware(['auth:sanctum'])->prefix('user/advertisements')->group(functi
     Route::get('/', [UserAdvertisementController::class, 'index']);
     Route::post('/', [UserAdvertisementController::class, 'store']);
     Route::get('/{id}/payment-params', [UserAdvertisementController::class, 'getPaymentParams']);
+    Route::get('/{id}/verify-payment', [UserAdvertisementController::class, 'verifyPayment']); // NEW
 });
 
 // Admin routes - Requires authentication
