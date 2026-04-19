@@ -18,6 +18,9 @@ Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
 
     // Audit Logs
     Route::get('/audit-logs', [SuperAdminController::class, 'getAuditLogs']);
+
+    // Dashboard Export
+    Route::get('/dashboard/export', [SuperAdminController::class, 'exportReport']);
 });
 
 // Public CMS data

@@ -11,6 +11,8 @@ use App\Models\Research\ResearchComment;
 use App\Models\Innovation\InnovationLike;
 use App\Models\Research\ResearchLike;
 use App\Models\AuditLog;
+use App\Models\Cms\HubCard;
+use App\Models\Career;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -20,22 +22,25 @@ class SuperAdminController extends Controller
     /**
      * Get aggregate statistics for the super admin dashboard
      */
-    public function getDashboardStats()
+    public function getDashboardStats(Request $request)
     {
         try {
-            // 1. Basic Counts
-            $totalUsers = User::count();
-            $totalInnovations = Innovation::count();
-            $totalResearch = Research::count();
+            $range = $request->query('range', '30days');
+            $dateLimit = $this->getDateLimit($range);
+
+            // 1. Basic Counts (Filtered by range)
+            $totalUsers = User::where('created_at', '>=', $dateLimit)->count();
+            $totalInnovations = Innovation::where('created_at', '>=', $dateLimit)->count();
+            $totalResearch = Research::where('created_at', '>=', $dateLimit)->count();
             $totalUploads = $totalInnovations + $totalResearch;
             
             // 2. Revenue Calculation
-            $totalRevenue = SellingItem::sum('total_revenue');
-            $activeSubscriptions = User::whereIn('role', ['Admin', 'Manager'])->count(); // Heuristic for now
+            $totalRevenue = SellingItem::where('created_at', '>=', $dateLimit)->sum('total_revenue');
+            $activeSubscriptions = User::whereIn('role', ['Admin', 'Manager'])->where('created_at', '>=', $dateLimit)->count();
             
-            // 3. Views Calculation
-            $totalInnovationViews = Innovation::sum('views');
-            $totalResearchViews = Research::sum('views');
+            // 3. Views Calculation (Note: Views are overall, but we capture the total snapshot)
+            $totalInnovationViews = Innovation::where('created_at', '>=', $dateLimit)->sum('views');
+            $totalResearchViews = Research::where('created_at', '>=', $dateLimit)->sum('views');
             $totalViews = $totalInnovationViews + $totalResearchViews;
 
             // 4. Users by Role
@@ -324,5 +329,116 @@ class SuperAdminController extends Controller
                 'message' => 'Error fetching audit logs: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Export dashboard data as CSV
+     */
+    public function exportReport(Request $request)
+    {
+        try {
+            $range = $request->query('range', '30days');
+            $dateLimit = $this->getDateLimit($range);
+
+            $totalUsers = User::where('created_at', '>=', $dateLimit)->count();
+            $totalRevenue = SellingItem::where('created_at', '>=', $dateLimit)->sum('total_revenue');
+            $totalUploads = Innovation::where('created_at', '>=', $dateLimit)->count() + Research::where('created_at', '>=', $dateLimit)->count();
+            $totalViews = Innovation::where('created_at', '>=', $dateLimit)->sum('views') + Research::where('created_at', '>=', $dateLimit)->sum('views');
+
+            $headers = [
+                "Content-type"        => "text/csv",
+                "Content-Disposition" => "attachment; filename=full_platform_report_" . date('Y-m-d') . ".csv",
+                "Pragma"              => "no-cache",
+                "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+                "Expires"             => "0"
+            ];
+
+            $callback = function() use ($totalUsers, $totalRevenue, $totalUploads, $totalViews, $range, $dateLimit) {
+                $file = fopen('php://output', 'w');
+                
+                // Header rows
+                fputcsv($file, ['Research Hub Full Platform Report']);
+                fputcsv($file, ['Report Range', $range]);
+                fputcsv($file, ['Generated Date', "'" . date('Y-m-d H:i')]);
+                fputcsv($file, []);
+
+                // 1. Summary Stats
+                fputcsv($file, ['SECTION: SUMMARY STATISTICS']);
+                fputcsv($file, ['Metric', 'Value (for selected range)']);
+                fputcsv($file, ['New Users', $totalUsers]);
+                fputcsv($file, ['Revenue ($)', number_format($totalRevenue, 2)]);
+                fputcsv($file, ['New Content Uploads', $totalUploads]);
+                fputcsv($file, ['Site Views', $totalViews]);
+                fputcsv($file, []);
+
+                // 2. Innovation & Research Details
+                fputcsv($file, ['SECTION: CONTENT PERFORMANCE']);
+                fputcsv($file, ['Type', 'Title', 'Category', 'Views']);
+                $topInno = Innovation::where('created_at', '>=', $dateLimit)->orderByDesc('views')->limit(10)->get();
+                foreach($topInno as $item) fputcsv($file, ['Innovation', $item->title, $item->category, $item->views]);
+                
+                $topRes = Research::where('created_at', '>=', $dateLimit)->orderByDesc('views')->limit(10)->get();
+                foreach($topRes as $item) fputcsv($file, ['Research', $item->title, $item->category, $item->views]);
+                fputcsv($file, []);
+
+                // 3. Site Management (Hub Cards & Jobs)
+                fputcsv($file, ['SECTION: SITE MANAGEMENT']);
+                fputcsv($file, ['Type', 'Label/Position', 'Value/Company']);
+                $hubCards = HubCard::all();
+                foreach($hubCards as $card) fputcsv($file, ['Hub Card', $card->label, $card->subtitle]);
+                
+                $jobs = Career::latest()->limit(10)->get();
+                foreach($jobs as $job) fputcsv($file, ['Job Opening', $job->title, $job->company_name]);
+                fputcsv($file, []);
+
+                // 4. Audit Logs (Recent Actions)
+                fputcsv($file, ['SECTION: ADMINISTRATIVE AUDIT LOGS']);
+                fputcsv($file, ['Date', 'Action', 'Performer', 'Description']);
+                $logs = AuditLog::with('user')->latest()->limit(50)->get();
+                foreach($logs as $log) {
+                    fputcsv($file, [
+                        "'" . $log->created_at->format('Y-m-d H:i'),
+                        $log->action,
+                        $log->user ? $log->user->email : 'System',
+                        $log->description
+                    ]);
+                }
+                fputcsv($file, []);
+
+                // 5. Payments Summary
+                fputcsv($file, ['SECTION: PAYMENTS & REVENUE']);
+                fputcsv($file, ['Date', 'Item ID', 'Buyer ID', 'Amount']);
+                $payments = SellingItem::where('created_at', '>=', $dateLimit)->latest()->limit(50)->get();
+                foreach($payments as $pay) {
+                    fputcsv($file, [
+                        $pay->created_at,
+                        $pay->id,
+                        $pay->user_id,
+                        $pay->total_revenue
+                    ]);
+                }
+                
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Helper to get date limit based on range
+     */
+    private function getDateLimit($range)
+    {
+        return match ($range) {
+            '24hours' => Carbon::now()->subDay(),
+            '7days'   => Carbon::now()->subDays(7),
+            '30days'  => Carbon::now()->subDays(30),
+            '90days'  => Carbon::now()->subDays(90),
+            default   => Carbon::now()->subYears(10), // All time
+        };
     }
 }
