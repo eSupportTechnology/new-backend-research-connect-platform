@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Profile\BankDetail;
+use App\Models\Profile\ShippingAddress;
 use App\Models\Innovation\Innovation;
 use App\Models\Innovation\SellingItem;
 use App\Models\Research\Research;
@@ -231,6 +232,24 @@ class SellingItemController extends Controller
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // Requirement Check for Paid Content
+        if ($request->is_paid) {
+            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
+            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
+
+            if (!$hasBank || !$hasAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING',
+                    'message' => 'You must configure your bank details and shipping address in your profile before listing items for sale.',
+                    'requirements' => [
+                        'bank_details' => $hasBank,
+                        'shipping_address' => $hasAddress
+                    ]
+                ], 400);
+            }
         }
 
         try {
@@ -735,6 +754,13 @@ class SellingItemController extends Controller
             $item = SellingItem::with('user')->findOrFail($id);
             $buyer = $request->user();
 
+            if ($item->user_id === $buyer->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot purchase your own product.'
+                ], 400);
+            }
+
             if ($item->stock_quantity < $request->quantity) {
                 return response()->json([
                     'success' => false,
@@ -750,7 +776,21 @@ class SellingItemController extends Controller
             if (!$sellerBank) {
                 return response()->json([
                     'success' => false,
+                    'code' => 'REQUIREMENT_MISSING_BANK',
                     'message' => 'The seller has not configured any bank details. Payment cannot be initiated.'
+                ], 400);
+            }
+
+            // Check if buyer has at least one shipping address
+            $buyerAddress = ShippingAddress::where('user_id', $buyer->id)
+                ->orderBy('is_default', 'desc')
+                ->first();
+
+            if (!$buyerAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING_SHIPPING',
+                    'message' => 'You need to add a shipping address to your profile before you can purchase items.'
                 ], 400);
             }
 
@@ -764,6 +804,7 @@ class SellingItemController extends Controller
                 'seller_id' => $item->user_id,
                 'selling_item_id' => $item->id,
                 'bank_detail_id' => $sellerBank ? $sellerBank->id : null,
+                'shipping_address_id' => $buyerAddress->id,
                 'quantity' => $request->quantity,
                 'amount' => $totalAmount,
                 'status' => 'pending'
@@ -825,7 +866,7 @@ class SellingItemController extends Controller
     public function getMyPurchases(Request $request)
     {
         $orders = Order::where('buyer_id', auth()->id())
-            ->with(['sellingItem', 'seller:id,first_name,last_name,email'])
+            ->with(['sellingItem', 'seller:id,first_name,last_name,email', 'shippingAddress'])
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 10));
 
@@ -841,7 +882,7 @@ class SellingItemController extends Controller
     public function getMySales(Request $request)
     {
         $orders = Order::where('seller_id', auth()->id())
-            ->with(['sellingItem', 'buyer:id,first_name,last_name,email', 'bankDetail'])
+            ->with(['sellingItem', 'buyer:id,first_name,last_name,email', 'bankDetail', 'shippingAddress'])
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 10));
 

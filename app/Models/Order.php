@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\RegisterUsers\User;
 use App\Models\Innovation\SellingItem;
 use App\Models\Profile\BankDetail;
+use App\Models\Profile\ShippingAddress;
 use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
@@ -15,6 +16,7 @@ class Order extends Model
         'seller_id',
         'selling_item_id',
         'bank_detail_id',
+        'shipping_address_id',
         'quantity',
         'amount',
         'status',
@@ -40,5 +42,10 @@ class Order extends Model
     public function bankDetail()
     {
         return $this->belongsTo(BankDetail::class, 'bank_detail_id');
+    }
+
+    public function shippingAddress()
+    {
+        return $this->belongsTo(ShippingAddress::class, 'shipping_address_id');
     }
 }

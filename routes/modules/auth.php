@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'index']);
+    Route::get('/profile/selling-eligibility', [ProfileController::class, 'getSellingEligibility']);
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::post('/profile/upload-profile-image', [ProfileController::class, 'updateProfileImage']);
     Route::post('/profile/upload-cover-image', [ProfileController::class, 'updateCoverImage']);
