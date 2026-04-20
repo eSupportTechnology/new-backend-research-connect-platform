@@ -6,6 +6,7 @@ use App\Http\Controllers\InnovationLikeController;
 use App\Http\Controllers\ResearchCommentController;
 use App\Http\Controllers\ResearchLikeController;
 use App\Http\Controllers\SellingItemController;
+use App\Http\Controllers\RevisionController;
 use App\Http\Controllers\UploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,9 @@ Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-research', [UploadController::class, 'getMyResearches']);
     Route::get('/my-innovations', [UploadController::class, 'getMyInnovations']);
+    Route::get('/my-submissions', [RevisionController::class, 'mySubmissions']);
+    Route::post('/innovations/{id}/resubmit', [RevisionController::class, 'resubmitInnovation']);
+    Route::post('/research/{id}/resubmit',    [RevisionController::class, 'resubmitResearch']);
     Route::put('/innovations/{id}/update-price', [UploadController::class, 'updateInnovationPrice']);
     Route::put('/research/{id}/update-price', [UploadController::class, 'updateResearchPrice']);
 });
@@ -73,6 +77,12 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
     // Content Removal
     Route::delete('/innovations/{id}', [UploadController::class, 'adminDestroyInnovation']);
     Route::delete('/research/{id}', [UploadController::class, 'adminDestroyResearch']);
+
+    // Revision System (Admin)
+    Route::post('/innovations/{id}/request-revision',    [RevisionController::class, 'requestInnovationRevision']);
+    Route::post('/research/{id}/request-revision',       [RevisionController::class, 'requestResearchRevision']);
+    Route::post('/innovations/{id}/permanently-reject',  [RevisionController::class, 'permanentlyRejectInnovation']);
+    Route::post('/research/{id}/permanently-reject',     [RevisionController::class, 'permanentlyRejectResearch']);
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
