@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\SuperAdminController;
+use App\Http\Controllers\AdminPaymentController;
 use App\Http\Controllers\Cms\HubCardController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,12 @@ Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
 
     // Dashboard Export
     Route::get('/dashboard/export', [SuperAdminController::class, 'exportReport']);
+
+    // Payments & Revenue
+    Route::get('/payments/overview', [AdminPaymentController::class, 'getOverview']);
+    Route::get('/payments/orders', [AdminPaymentController::class, 'getOrders']);
+    Route::get('/payments/ads', [AdminPaymentController::class, 'getAdPayments']);
+    Route::get('/payments/export', [AdminPaymentController::class, 'exportPayments']);
 });
 
 // Public CMS data
