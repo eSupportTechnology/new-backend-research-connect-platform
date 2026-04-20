@@ -19,6 +19,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/manage/{id}', [SellingItemController::class, 'getSellingItem']);
         Route::put('/{id}', [SellingItemController::class, 'updateSellingItem']);
         Route::delete('/{id}', [SellingItemController::class, 'removeFromSelling']);
+        Route::post('/{id}/initiate-purchase', [SellingItemController::class, 'initiatePurchase']);
+        Route::get('/orders/my-purchases', [SellingItemController::class, 'getMyPurchases']);
+        Route::get('/orders/my-sales', [SellingItemController::class, 'getMySales']);
         Route::post('/{id}/purchase', [SellingItemController::class, 'trackPurchase']);
         Route::post('/{id}/view', [SellingItemController::class, 'trackView']);
     });
