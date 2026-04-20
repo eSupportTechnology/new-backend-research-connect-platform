@@ -846,9 +846,9 @@ class SellingItemController extends Controller
                     'address' => 'No 1, Galle Road',
                     'city' => 'Colombo',
                     'country' => 'Sri Lanka',
-                    'notify_url' => url('/api/advertisements/payhere/notify'), // Reuse notification URL
-                    'return_url' => 'http://localhost:5173/profile/orders?status=success',
-                    'cancel_url' => 'http://localhost:5173/profile/orders?status=cancel',
+                    'notify_url' => url('/api/advertisements/payhere/notify'),
+                    'return_url' => env('FRONTEND_URL', 'http://localhost:5173') . '/profile/orders?status=success',
+                    'cancel_url' => env('FRONTEND_URL', 'http://localhost:5173') . '/profile/orders?status=cancel',
                 ]
             ]);
 
