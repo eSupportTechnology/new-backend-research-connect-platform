@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Advertisement\Advertisement;
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -14,7 +15,7 @@ class PayHereController extends Controller
     public function notify(Request $request)
     {
         $merchant_id = $request->merchant_id;
-        $order_id = $request->order_id; // e.g., AD-5-1618584841
+        $order_id = $request->order_id; // e.g., AD-5-1618584841 or ORD123T1618584841
         $payhere_amount = $request->payhere_amount;
         $payhere_currency = $request->payhere_currency;
         $status_code = $request->status_code;
@@ -35,7 +36,7 @@ class PayHereController extends Controller
         );
 
         if ($local_md5sig === $md5sig) {
-            // Extract Ad ID from order_id using regex (handles format: AD{id}T{timestamp})
+            // Case 1: Advertisement Payment
             if (preg_match('/AD(\d+)T/', $order_id, $matches)) {
                 $ad_id = $matches[1];
                 $ad = Advertisement::find($ad_id);
@@ -52,6 +53,38 @@ class PayHereController extends Controller
                     } else {
                         $ad->update(['payment_status' => 'failed']);
                         Log::warning("PayHere: Ad payment failed. Status: $status_code, ID: $ad_id");
+                    }
+                }
+            }
+            // Case 2: Store Order Payment
+            else if (preg_match('/ORD(\d+)T/', $order_id, $matches)) {
+                $internal_order_id = $matches[1];
+                $order = Order::find($internal_order_id);
+
+                if ($order) {
+                    if ($status_code == 2) { // 2 = Success
+                        $order->update([
+                            'status' => 'paid',
+                            'payhere_payment_id' => $request->payment_id,
+                            'payhere_method' => $request->method,
+                        ]);
+
+                        // Decrease stock and track purchase in selling item
+                        $item = $order->sellingItem;
+                        if ($item) {
+                            $item->decreaseStock($order->quantity);
+                            $item->total_purchases += $order->quantity;
+                            $item->total_revenue += $order->amount;
+                            $item->save();
+                        }
+
+                        Log::info("PayHere: Order payment successful. Internal ID: $internal_order_id");
+                    } else if ($status_code == 0) { // 0 = Pending
+                        $order->update(['status' => 'pending']);
+                        Log::info("PayHere: Order payment pending. Internal ID: $internal_order_id");
+                    } else {
+                        $order->update(['status' => 'failed']);
+                        Log::warning("PayHere: Order payment failed. Status: $status_code, Internal ID: $internal_order_id");
                     }
                 }
             }

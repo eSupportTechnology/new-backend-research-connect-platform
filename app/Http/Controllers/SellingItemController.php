@@ -3,6 +3,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
+use App\Models\Profile\BankDetail;
+use App\Models\Profile\ShippingAddress;
 use App\Models\Innovation\Innovation;
 use App\Models\Innovation\SellingItem;
 use App\Models\Research\Research;
@@ -229,6 +232,24 @@ class SellingItemController extends Controller
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // Requirement Check for Paid Content
+        if ($request->is_paid) {
+            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
+            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
+
+            if (!$hasBank || !$hasAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING',
+                    'message' => 'You must configure your bank details and shipping address in your profile before listing items for sale.',
+                    'requirements' => [
+                        'bank_details' => $hasBank,
+                        'shipping_address' => $hasAddress
+                    ]
+                ], 400);
+            }
         }
 
         try {
@@ -714,6 +735,164 @@ class SellingItemController extends Controller
     }
 
     /**
+     * Initiate Purchase (Get PayHere Params)
+     */
+    public function initiatePurchase(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'quantity' => 'required|integer|min:1'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $item = SellingItem::with('user')->findOrFail($id);
+            $buyer = $request->user();
+
+            if ($item->user_id === $buyer->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot purchase your own product.'
+                ], 400);
+            }
+
+            if ($item->stock_quantity < $request->quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Insufficient stock'
+                ], 400);
+            }
+
+            // Get seller's bank detail (Prefer default, otherwise take the first one)
+            $sellerBank = BankDetail::where('user_id', $item->user_id)
+                ->orderBy('is_default', 'desc')
+                ->first();
+
+            if (!$sellerBank) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING_BANK',
+                    'message' => 'The seller has not configured any bank details. Payment cannot be initiated.'
+                ], 400);
+            }
+
+            // Check if buyer has at least one shipping address
+            $buyerAddress = ShippingAddress::where('user_id', $buyer->id)
+                ->orderBy('is_default', 'desc')
+                ->first();
+
+            if (!$buyerAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING_SHIPPING',
+                    'message' => 'You need to add a shipping address to your profile before you can purchase items.'
+                ], 400);
+            }
+
+            $totalAmount = ($item->discounted_price ?? $item->price) * $request->quantity;
+            $formattedAmount = number_format($totalAmount, 2, '.', '');
+
+            // Create Pending Order
+            $order = Order::create([
+                'order_id_string' => 'PENDING', // Will update later
+                'buyer_id' => $buyer->id,
+                'seller_id' => $item->user_id,
+                'selling_item_id' => $item->id,
+                'bank_detail_id' => $sellerBank ? $sellerBank->id : null,
+                'shipping_address_id' => $buyerAddress->id,
+                'quantity' => $request->quantity,
+                'amount' => $totalAmount,
+                'status' => 'pending'
+            ]);
+
+            $merchant_id = config('services.payhere.merchant_id');
+            $merchant_secret = config('services.payhere.merchant_secret');
+            $order_id_string = 'ORD' . $order->id . 'T' . time();
+            $currency = 'LKR';
+
+            // Update order with the generated string
+            $order->update(['order_id_string' => $order_id_string]);
+
+            // Generate Hash
+            $hash = strtoupper(
+                md5(
+                    $merchant_id . 
+                    $order_id_string . 
+                    $formattedAmount . 
+                    $currency . 
+                    strtoupper(md5($merchant_secret))
+                )
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'sandbox' => config('services.payhere.sandbox', true),
+                    'merchant_id' => $merchant_id,
+                    'order_id' => $order_id_string,
+                    'items' => $item->title . " (x" . $request->quantity . ")",
+                    'amount' => $formattedAmount,
+                    'currency' => $currency,
+                    'hash' => $hash,
+                    'first_name' => $buyer->first_name ?? $buyer->name ?? 'Buyer',
+                    'last_name' => $buyer->last_name ?? 'User',
+                    'email' => $buyer->email,
+                    'phone' => $buyer->phone ?? '0771234567',
+                    'address' => 'No 1, Galle Road',
+                    'city' => 'Colombo',
+                    'country' => 'Sri Lanka',
+                    'notify_url' => url('/api/advertisements/payhere/notify'), // Reuse notification URL
+                    'return_url' => 'http://localhost:5173/profile/orders?status=success',
+                    'cancel_url' => 'http://localhost:5173/profile/orders?status=cancel',
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to initiate purchase: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get orders bought by current user
+     */
+    public function getMyPurchases(Request $request)
+    {
+        $orders = Order::where('buyer_id', auth()->id())
+            ->with(['sellingItem', 'seller:id,first_name,last_name,email', 'shippingAddress'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->get('per_page', 10));
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders
+        ]);
+    }
+
+    /**
+     * Get orders sold by current user
+     */
+    public function getMySales(Request $request)
+    {
+        $orders = Order::where('seller_id', auth()->id())
+            ->with(['sellingItem', 'buyer:id,first_name,last_name,email', 'bankDetail', 'shippingAddress'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->get('per_page', 10));
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders
+        ]);
+    }
+
+    /**
      * Track view
      */
     public function trackView($id)
@@ -781,6 +960,38 @@ class SellingItemController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch statistics: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancel/Delete a pending order
+     */
+    public function cancelOrder($id)
+    {
+        try {
+            $order = Order::where('buyer_id', auth()->id())
+                ->where('id', $id)
+                ->firstOrFail();
+
+            if ($order->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only pending orders can be cancelled.'
+                ], 400);
+            }
+
+            $order->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order cancelled successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel order'
             ], 500);
         }
     }

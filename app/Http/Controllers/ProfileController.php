@@ -281,4 +281,24 @@ class ProfileController extends Controller
             ]
         ]);
     }
+
+    /**
+     * Check if user is eligible to sell (has bank and address)
+     */
+    public function getSellingEligibility()
+    {
+        $userId = Auth::id();
+        
+        $hasBank = \App\Models\Profile\BankDetail::where('user_id', $userId)->exists();
+        $hasAddress = \App\Models\Profile\ShippingAddress::where('user_id', $userId)->exists();
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'has_bank_details' => $hasBank,
+                'has_shipping_address' => $hasAddress,
+                'is_eligible' => $hasBank && $hasAddress
+            ]
+        ]);
+    }
 }

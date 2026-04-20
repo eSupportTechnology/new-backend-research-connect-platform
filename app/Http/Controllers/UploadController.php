@@ -7,6 +7,8 @@ use App\Models\Innovation\InnovationViews;
 use App\Models\Research\Research;
 use App\Models\Innovation\Innovation;
 use App\Models\Research\ResearchViews;
+use App\Models\Profile\BankDetail;
+use App\Models\Profile\ShippingAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -45,6 +47,24 @@ class UploadController extends Controller
                 'success' => false,
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // Requirement Check for Paid Content
+        if ($request->price === 'yes') {
+            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
+            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
+
+            if (!$hasBank || !$hasAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING',
+                    'message' => 'You must configure your bank details and shipping address in your profile before uploading paid content.',
+                    'requirements' => [
+                        'bank_details' => $hasBank,
+                        'shipping_address' => $hasAddress
+                    ]
+                ], 400);
+            }
         }
 
         DB::beginTransaction();
@@ -160,6 +180,24 @@ class UploadController extends Controller
                 'success' => false,
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // Requirement Check for Paid Content
+        if ($request->price === 'yes') {
+            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
+            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
+
+            if (!$hasBank || !$hasAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING',
+                    'message' => 'You must configure your bank details and shipping address in your profile before uploading paid content.',
+                    'requirements' => [
+                        'bank_details' => $hasBank,
+                        'shipping_address' => $hasAddress
+                    ]
+                ], 400);
+            }
         }
 
         DB::beginTransaction();
@@ -682,6 +720,24 @@ class UploadController extends Controller
             ], 422);
         }
 
+        // Requirement Check for Paid Content
+        if ($request->is_paid) {
+            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
+            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
+
+            if (!$hasBank || !$hasAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING',
+                    'message' => 'You must configure your bank details and shipping address in your profile before enabling paid access.',
+                    'requirements' => [
+                        'bank_details' => $hasBank,
+                        'shipping_address' => $hasAddress
+                    ]
+                ], 400);
+            }
+        }
+
         try {
             $innovation = Innovation::where('user_id', auth()->id())->findOrFail($id);
 
@@ -719,6 +775,24 @@ class UploadController extends Controller
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // Requirement Check for Paid Content
+        if ($request->is_paid) {
+            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
+            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
+
+            if (!$hasBank || !$hasAddress) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'REQUIREMENT_MISSING',
+                    'message' => 'You must configure your bank details and shipping address in your profile before enabling paid access.',
+                    'requirements' => [
+                        'bank_details' => $hasBank,
+                        'shipping_address' => $hasAddress
+                    ]
+                ], 400);
+            }
         }
 
         try {
