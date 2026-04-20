@@ -22,6 +22,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/initiate-purchase', [SellingItemController::class, 'initiatePurchase']);
         Route::get('/orders/my-purchases', [SellingItemController::class, 'getMyPurchases']);
         Route::get('/orders/my-sales', [SellingItemController::class, 'getMySales']);
+        Route::delete('/orders/{id}', [SellingItemController::class, 'cancelOrder']);
         Route::post('/{id}/purchase', [SellingItemController::class, 'trackPurchase']);
         Route::post('/{id}/view', [SellingItemController::class, 'trackView']);
     });

@@ -963,4 +963,36 @@ class SellingItemController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Cancel/Delete a pending order
+     */
+    public function cancelOrder($id)
+    {
+        try {
+            $order = Order::where('buyer_id', auth()->id())
+                ->where('id', $id)
+                ->firstOrFail();
+
+            if ($order->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only pending orders can be cancelled.'
+                ], 400);
+            }
+
+            $order->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order cancelled successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel order'
+            ], 500);
+        }
+    }
 }
