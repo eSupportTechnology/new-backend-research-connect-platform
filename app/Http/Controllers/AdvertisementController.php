@@ -172,6 +172,35 @@ class AdvertisementController extends Controller
     }
 
     /**
+     * Get banner ads (for BannerAd component — placed between home page sections)
+     */
+    public function getBannerAds()
+    {
+        $ads = Advertisement::active()
+            ->ofType('banner')
+            ->orderBy('order', 'asc')
+            ->get()
+            ->map(function ($ad) {
+                return [
+                    'id'       => $ad->id,
+                    'badge'    => $ad->badge,
+                    'title'    => $ad->title,
+                    'subtitle' => $ad->subtitle,
+                    'desc'     => $ad->description,
+                    'image'    => $ad->image_url,
+                    'color'    => $ad->color ?? '#e53e3e',
+                    'cta_text' => $ad->cta_text,
+                    'link'     => $ad->cta_link,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $ads,
+        ]);
+    }
+
+    /**
      * Record an impression
      */
     public function recordImpression(Request $request, $id)
@@ -250,6 +279,13 @@ class AdvertisementController extends Controller
 
         $data = $validator->validated();
 
+        // Normalize empty strings to null for date/time columns so MySQL doesn't store '00:00:00'
+        foreach (['start_date', 'end_date', 'display_start_time', 'display_end_time'] as $field) {
+            if (array_key_exists($field, $data) && $data[$field] === '') {
+                $data[$field] = null;
+            }
+        }
+
         // Handle image upload
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('advertisements', 's3');
@@ -257,10 +293,10 @@ class AdvertisementController extends Controller
         }
 
         // Convert dates correctly with timezone to avoid returning the previous day
-        if (isset($data['start_date'])) {
+        if (!empty($data['start_date'])) {
             $data['start_date'] = Carbon::parse($data['start_date'], 'Asia/Colombo')->startOfDay()->utc();
         }
-        if (isset($data['end_date'])) {
+        if (!empty($data['end_date'])) {
             $data['end_date'] = Carbon::parse($data['end_date'], 'Asia/Colombo')->endOfDay()->utc();
         }
 
@@ -316,6 +352,13 @@ class AdvertisementController extends Controller
 
         $data = $validator->validated();
 
+        // Normalize empty strings to null for date/time columns
+        foreach (['start_date', 'end_date', 'display_start_time', 'display_end_time'] as $field) {
+            if (array_key_exists($field, $data) && $data[$field] === '') {
+                $data[$field] = null;
+            }
+        }
+
         // Handle image upload
         if ($request->hasFile('image')) {
             // Delete old image from S3
@@ -327,10 +370,10 @@ class AdvertisementController extends Controller
         }
 
         // Convert dates correctly with timezone to avoid returning the previous day
-        if (isset($data['start_date'])) {
+        if (!empty($data['start_date'])) {
             $data['start_date'] = Carbon::parse($data['start_date'], 'Asia/Colombo')->startOfDay()->utc();
         }
-        if (isset($data['end_date'])) {
+        if (!empty($data['end_date'])) {
             $data['end_date'] = Carbon::parse($data['end_date'], 'Asia/Colombo')->endOfDay()->utc();
         }
 

@@ -17,6 +17,7 @@ Route::prefix('advertisements')->group(function () {
     Route::get('/', [AdvertisementController::class, 'index']);
     Route::get('/side', [AdvertisementController::class, 'getSideAds']);
     Route::get('/carousel', [AdvertisementController::class, 'getCarouselAds']);
+    Route::get('/banner', [AdvertisementController::class, 'getBannerAds']);
 
     // Track engagement
     Route::post('/{id}/impression', [AdvertisementController::class, 'recordImpression']);
