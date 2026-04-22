@@ -212,22 +212,25 @@ class ProfileController extends Controller
             return response()->json(['success' => false, 'message' => 'Profile not found'], 404);
         }
 
-        $this->deleteFromS3($profile->profile_image);
+        try {
+            $this->deleteFromS3($profile->profile_image);
 
-        // ✅ Set public visibility
-        $path = Storage::disk('s3')->putFile('profiles', $request->file('profile_image'), 'public');
+            $path = Storage::disk('s3')->putFile('profiles', $request->file('profile_image'));
 
-        if (!$path) {
-            return response()->json(['success' => false, 'message' => 'Failed to upload image to S3'], 500);
+            $profile->update(['profile_image' => $path]);
+
+            return response()->json([
+                'success'           => true,
+                'message'           => 'Profile image updated successfully',
+                'profile_image_url' => $this->getS3Url($path),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Profile image S3 upload failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload image to S3: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $profile->update(['profile_image' => $path]);
-
-        return response()->json([
-            'success'           => true,
-            'message'           => 'Profile image updated successfully',
-            'profile_image_url' => $this->getS3Url($path),
-        ]);
     }
 
     public function updateCoverImage(Request $request)
@@ -242,22 +245,25 @@ class ProfileController extends Controller
             return response()->json(['success' => false, 'message' => 'Profile not found'], 404);
         }
 
-        $this->deleteFromS3($profile->cover_image);
+        try {
+            $this->deleteFromS3($profile->cover_image);
 
-        // ✅ Set public visibility
-        $path = Storage::disk('s3')->putFile('covers', $request->file('cover_image'), 'public');
+            $path = Storage::disk('s3')->putFile('covers', $request->file('cover_image'));
 
-        if (!$path) {
-            return response()->json(['success' => false, 'message' => 'Failed to upload cover image to S3'], 500);
+            $profile->update(['cover_image' => $path]);
+
+            return response()->json([
+                'success'         => true,
+                'message'         => 'Cover image updated successfully',
+                'cover_image_url' => $this->getS3Url($path),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Cover image S3 upload failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload cover image to S3: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $profile->update(['cover_image' => $path]);
-
-        return response()->json([
-            'success'         => true,
-            'message'         => 'Cover image updated successfully',
-            'cover_image_url' => $this->getS3Url($path),
-        ]);
     }
 
     /**

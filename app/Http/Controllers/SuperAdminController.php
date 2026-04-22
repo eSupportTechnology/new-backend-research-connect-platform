@@ -278,6 +278,29 @@ class SuperAdminController extends Controller
     }
 
     /**
+     * Public platform stats for homepage
+     */
+    public function getPlatformStats()
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'innovations_count' => Innovation::count(),
+                    'researches_count'  => Research::count(),
+                    'investors_count'   => User::whereIn('role', ['INVESTOR', 'BOTH'])->count(),
+                    'members_count'     => User::count(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching platform stats: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get featured performers for public display
      */
     public function getFeaturedPerformers(Request $request)

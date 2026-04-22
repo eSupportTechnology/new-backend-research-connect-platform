@@ -35,3 +35,6 @@ Route::get('/public/hub-cards', [HubCardController::class, 'index']);
 
 // Public featured performers
 Route::get('/public/featured-performers', [SuperAdminController::class, 'getFeaturedPerformers']);
+
+// Public platform stats (homepage counters)
+Route::get('/public/platform-stats', [SuperAdminController::class, 'getPlatformStats']);
