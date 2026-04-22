@@ -22,10 +22,13 @@ class User extends Authenticatable
      */
     protected $keyType = 'string';
     public $incrementing = false;
-    protected $appends = ['follower_count', 'following_count', 'innovation_count', 'research_count'];
-    /**
-     * Mass assignable fields
-     */
+    protected $appends = ['follower_count', 'following_count', 'innovation_count', 'research_count', 'tier_badge'];
+
+    // Organic progression thresholds
+    const TIER_THRESHOLDS = [
+        'bronze_to_silver' => 5,
+        'silver_to_gold'   => 15,
+    ];
     protected $fillable = [
         'first_name',
         'last_name',
@@ -33,7 +36,10 @@ class User extends Authenticatable
         'password',
         'role',
         'user_type',
-        'status'
+        'status',
+        'membership_tier',
+        'tier_upgraded_at',
+        'tier_upgrade_source',
     ];
 
     /**
@@ -44,14 +50,12 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    /**
-     * Casts
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password'          => 'hashed',
+            'tier_upgraded_at'  => 'datetime',
         ];
     }
     public function following()
@@ -189,5 +193,60 @@ class User extends Authenticatable
     public function getResearchCountAttribute()
     {
         return $this->researches()->count();
+    }
+
+    public function getTierBadgeAttribute(): array
+    {
+        $tier = $this->membership_tier ?? 'bronze';
+        $badges = [
+            'bronze' => ['label' => 'Bronze', 'color' => '#CD7F32', 'bg' => '#FFF3E0', 'icon' => '🥉'],
+            'silver' => ['label' => 'Silver', 'color' => '#9E9E9E', 'bg' => '#F5F5F5', 'icon' => '🥈'],
+            'gold'   => ['label' => 'Gold',   'color' => '#FFD700', 'bg' => '#FFFDE7', 'icon' => '🥇'],
+        ];
+        return $badges[$tier] ?? $badges['bronze'];
+    }
+
+    public function canAccess(string $requiredTier): bool
+    {
+        $order = ['bronze' => 1, 'silver' => 2, 'gold' => 3];
+        $current = $order[$this->membership_tier ?? 'bronze'] ?? 1;
+        $required = $order[$requiredTier] ?? 1;
+        return $current >= $required;
+    }
+
+    public function approvedUploadCount(): int
+    {
+        $innovations = $this->innovations()->where('status', 'active')->count();
+        $research    = $this->researches()->whereIn('status', ['approved', 'active'])->count();
+        return $innovations + $research;
+    }
+
+    public function checkAndUpgradeTier(): bool
+    {
+        $current = $this->membership_tier ?? 'bronze';
+        if ($current === 'gold') {
+            return false;
+        }
+
+        $uploadCount = $this->approvedUploadCount();
+        $newTier = $current;
+
+        if ($current === 'bronze' && $uploadCount >= self::TIER_THRESHOLDS['bronze_to_silver']) {
+            $newTier = 'silver';
+        }
+        if ($current === 'silver' && $uploadCount >= self::TIER_THRESHOLDS['silver_to_gold']) {
+            $newTier = 'gold';
+        }
+
+        if ($newTier !== $current) {
+            $this->update([
+                'membership_tier'      => $newTier,
+                'tier_upgraded_at'     => now(),
+                'tier_upgrade_source'  => 'organic',
+            ]);
+            return true;
+        }
+
+        return false;
     }
 }

@@ -65,10 +65,14 @@ class ProfileController extends Controller
         $profileData['profile_image_url'] = $this->getS3Url($profile->profile_image);
         $profileData['cover_image_url']   = $this->getS3Url($profile->cover_image);
 
+        $userData                   = $user->toArray();
+        $userData['membership_tier']= $user->membership_tier ?? 'bronze';
+        $userData['tier_badge']     = $user->tier_badge;
+
         return response()->json([
             'success' => true,
             'data'    => [
-                'user'        => $user,
+                'user'        => $userData,
                 'profile'     => $profileData,
                 'experiences' => $profile->experiences,
                 'educations'  => $profile->educations,
