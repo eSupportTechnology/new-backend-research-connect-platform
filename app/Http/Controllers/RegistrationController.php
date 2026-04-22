@@ -21,11 +21,12 @@ class RegistrationController extends Controller
             'investorDetails.investmentPreferences' => 'required|string',
         ]);
         $user = User::create([
-            'first_name' => $validated['investorDetails']['firstName'],
-            'last_name' => $validated['investorDetails']['lastName'],
-            'email' => $validated['investorDetails']['email'],
-            'password' => Hash::make($validated['investorDetails']['password']),
-            'role' => 'INVESTOR'
+            'first_name'      => $validated['investorDetails']['firstName'],
+            'last_name'       => $validated['investorDetails']['lastName'],
+            'email'           => $validated['investorDetails']['email'],
+            'password'        => Hash::make($validated['investorDetails']['password']),
+            'role'            => 'INVESTOR',
+            'membership_tier' => 'bronze',
         ]);
         $investor = Investor::create([
             'user_id' => $user->id,
@@ -54,13 +55,15 @@ class RegistrationController extends Controller
             'isSchoolStudent' => 'required|boolean'
         ]);
 
+        $isStudent = $request->input('isSchoolStudent', false);
         $user = User::create([
-            'first_name' => $validated['generalUserDetails']['firstName'],
-            'last_name' => $validated['generalUserDetails']['lastName'],
-            'email' => $validated['generalUserDetails']['email'],
-            'password' => Hash::make($validated['generalUserDetails']['password']),
-            'role' => 'GENERAL_USER',
-            'user_type' => $request->input('userType')
+            'first_name'      => $validated['generalUserDetails']['firstName'],
+            'last_name'       => $validated['generalUserDetails']['lastName'],
+            'email'           => $validated['generalUserDetails']['email'],
+            'password'        => Hash::make($validated['generalUserDetails']['password']),
+            'role'            => 'GENERAL_USER',
+            'user_type'       => $request->input('userType'),
+            'membership_tier' => $isStudent ? 'gold' : 'bronze',
         ]);
 
         // School student
@@ -101,13 +104,15 @@ class RegistrationController extends Controller
             'isSchoolStudent' => 'required|boolean'
         ]);
 
+        $isStudent = $request->input('isSchoolStudent', false);
         $user = User::create([
-            'first_name' => $validated['coreDetails']['firstName'],
-            'last_name' => $validated['coreDetails']['lastName'],
-            'email' => $validated['coreDetails']['email'],
-            'password' => Hash::make($validated['coreDetails']['password']),
-            'role' => 'BOTH',
-            'user_type' => $request->input('userType')
+            'first_name'      => $validated['coreDetails']['firstName'],
+            'last_name'       => $validated['coreDetails']['lastName'],
+            'email'           => $validated['coreDetails']['email'],
+            'password'        => Hash::make($validated['coreDetails']['password']),
+            'role'            => 'BOTH',
+            'user_type'       => $request->input('userType'),
+            'membership_tier' => $isStudent ? 'gold' : 'bronze',
         ]);
 
         $investor = Investor::create([

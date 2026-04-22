@@ -57,13 +57,15 @@ class AuthController extends Controller
             'token' => $token,
             'data' => [
                 'user' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                    'user_type' => $user->user_type,
-                    'status' => $user->status, // Include status in response
+                    'id'              => $user->id,
+                    'first_name'      => $user->first_name,
+                    'last_name'       => $user->last_name,
+                    'email'           => $user->email,
+                    'role'            => $user->role,
+                    'user_type'       => $user->user_type,
+                    'status'          => $user->status,
+                    'membership_tier' => $user->membership_tier ?? 'bronze',
+                    'tier_badge'      => $user->tier_badge,
                 ],
             ]
         ], 200);

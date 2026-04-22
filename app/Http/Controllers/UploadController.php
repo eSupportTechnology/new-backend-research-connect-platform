@@ -256,12 +256,18 @@ class UploadController extends Controller
 
             Log::info('Innovation created successfully', ['innovation_id' => $innovation->id]);
 
+            // Check if user qualifies for a tier upgrade
+            $user = auth()->user();
+            $tierUpgraded = $user->checkAndUpgradeTier();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Innovation uploaded successfully',
                 'data' => [
-                    'innovation' => $innovation,
-                    'files' => $uploadedFiles,
+                    'innovation'     => $innovation,
+                    'files'          => $uploadedFiles,
+                    'tier_upgraded'  => $tierUpgraded,
+                    'membership_tier'=> $user->fresh()->membership_tier,
                 ]
             ], 201);
 
@@ -866,6 +872,14 @@ class UploadController extends Controller
         try {
             $research = Research::findOrFail($id);
             $research->update(['status' => $request->status]);
+
+            // Trigger organic tier check for the researcher when approved
+            if ($request->status === 'approved') {
+                $researcher = \App\Models\RegisterUsers\User::find($research->user_id);
+                if ($researcher) {
+                    $researcher->checkAndUpgradeTier();
+                }
+            }
 
             return response()->json([
                 'success' => true,

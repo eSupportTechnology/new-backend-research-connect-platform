@@ -11,3 +11,4 @@ require __DIR__.'/modules/adveristment.php';
 require __DIR__.'/modules/admin.php';
 require __DIR__.'/modules/community.php';
 require __DIR__.'/modules/careers.php';
+require __DIR__.'/modules/membership.php';

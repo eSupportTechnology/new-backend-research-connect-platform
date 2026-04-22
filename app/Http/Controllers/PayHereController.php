@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Advertisement\Advertisement;
+use App\Models\MembershipPayment;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -85,6 +86,34 @@ class PayHereController extends Controller
                     } else {
                         $order->update(['status' => 'failed']);
                         Log::warning("PayHere: Order payment failed. Status: $status_code, Internal ID: $internal_order_id");
+                    }
+                }
+            }
+            // Case 3: Membership Tier Upgrade Payment
+            else if (preg_match('/TIER(.+)TO(SILVER|GOLD)T(\d+)/', $order_id, $matches)) {
+                $payment = MembershipPayment::where('order_id_string', $order_id)->first();
+
+                if ($payment) {
+                    if ($status_code == 2) {
+                        $payment->update([
+                            'status'             => 'paid',
+                            'payhere_payment_id' => $request->payment_id,
+                        ]);
+
+                        $user = $payment->user;
+                        if ($user) {
+                            $user->update([
+                                'membership_tier'     => $payment->to_tier,
+                                'tier_upgraded_at'    => now(),
+                                'tier_upgrade_source' => 'paid',
+                            ]);
+                            Log::info("PayHere: Membership upgraded to {$payment->to_tier} for user {$user->id}");
+                        }
+                    } elseif ($status_code == 0) {
+                        Log::info("PayHere: Membership payment pending. Order: $order_id");
+                    } else {
+                        $payment->update(['status' => 'failed']);
+                        Log::warning("PayHere: Membership payment failed. Status: $status_code, Order: $order_id");
                     }
                 }
             }
