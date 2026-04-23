@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\EducationController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ExperienceController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PortfolioCommonController;
@@ -24,6 +25,13 @@ Route::post('/login', [AuthController::class, 'login']);
 // Password reset
 Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
 Route::post('/reset-password',  [PasswordResetController::class, 'resetPassword']);
+
+// Email verification
+Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+    ->middleware(['auth:sanctum', 'signed'])
+    ->name('verification.verify');
+Route::post('/email/resend', [EmailVerificationController::class, 'resend'])
+    ->middleware('auth:sanctum');
 
 // OAuth — Google
 Route::get('/auth/google',          [SocialAuthController::class, 'redirectToGoogle']);

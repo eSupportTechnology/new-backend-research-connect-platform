@@ -35,12 +35,15 @@ class RegistrationController extends Controller
             'investment_preferences' => $validated['investorDetails']['investmentPreferences']
         ]);
 
+        $user->sendEmailVerificationNotification();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'user' => $user,
             'investor' => $investor,
-            'token' => $token
+            'token' => $token,
+            'message' => 'Registration successful. Please check your email to verify your account.'
         ]);
     }
 
@@ -85,11 +88,14 @@ class RegistrationController extends Controller
             ]);
         }
 
+        $user->sendEmailVerificationNotification();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'user' => $user,
-            'token' => $token
+            'token' => $token,
+            'message' => 'Registration successful. Please check your email to verify your account.'
         ]);
     }
     public function registerBoth(Request $request)
@@ -140,11 +146,14 @@ class RegistrationController extends Controller
             ]);
         }
 
+        $user->sendEmailVerificationNotification();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'user' => $user,
-            'token' => $token
+            'token' => $token,
+            'message' => 'Registration successful. Please check your email to verify your account.'
         ]);
     }
 }
