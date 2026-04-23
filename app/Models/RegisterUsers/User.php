@@ -8,12 +8,13 @@ use App\Models\Portfolio\Experience;
 use App\Models\Portfolio\Profile;
 use App\Models\Profile\Cards;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable, HasApiTokens;
 
@@ -40,6 +41,9 @@ class User extends Authenticatable
         'membership_tier',
         'tier_upgraded_at',
         'tier_upgrade_source',
+        'google_id',
+        'facebook_id',
+        'oauth_provider',
     ];
 
     /**
@@ -204,6 +208,11 @@ class User extends Authenticatable
             'gold'   => ['label' => 'Gold',   'color' => '#FFD700', 'bg' => '#FFFDE7', 'icon' => '🥇'],
         ];
         return $badges[$tier] ?? $badges['bronze'];
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new \App\Notifications\VerifyEmailNotification);
     }
 
     public function canAccess(string $requiredTier): bool

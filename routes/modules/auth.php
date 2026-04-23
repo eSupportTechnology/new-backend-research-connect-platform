@@ -3,11 +3,14 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\EducationController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ExperienceController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PortfolioCommonController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ShippingAddressController;
+use App\Http\Controllers\SocialAuthController;
 use Illuminate\Support\Facades\Route;
 
 //Register
@@ -18,6 +21,25 @@ Route::middleware('auth:sanctum')->post('/change-password', [AuthController::cla
 
 //Login
 Route::post('/login', [AuthController::class, 'login']);
+
+// Password reset
+Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
+Route::post('/reset-password',  [PasswordResetController::class, 'resetPassword']);
+
+// Email verification
+Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+    ->middleware(['auth:sanctum', 'signed'])
+    ->name('verification.verify');
+Route::post('/email/resend', [EmailVerificationController::class, 'resend'])
+    ->middleware('auth:sanctum');
+
+// OAuth — Google
+Route::get('/auth/google',          [SocialAuthController::class, 'redirectToGoogle']);
+Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
+
+// OAuth — Facebook
+Route::get('/auth/facebook',          [SocialAuthController::class, 'redirectToFacebook']);
+Route::get('/auth/facebook/callback', [SocialAuthController::class, 'handleFacebookCallback']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 });
