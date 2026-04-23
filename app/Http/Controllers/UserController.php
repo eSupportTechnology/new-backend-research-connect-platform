@@ -69,7 +69,7 @@ class UserController extends Controller
                 'last_name'  => 'required|string|max:255',
                 'email'      => 'required|email|unique:users,email',
                 'password'   => 'required|min:6',
-                'role'       => 'required|string|in:Admin,Manager,SuperAdmin',
+                'role'       => 'required|string|in:admin,manager,superadmin,marketing',
                 'user_type'  => 'sometimes|string|in:regular,admin'
             ]);
 
@@ -122,7 +122,7 @@ class UserController extends Controller
                     Rule::unique('users')->ignore($user->id)
                 ],
                 'password'   => 'sometimes|min:6',
-                'role'       => 'sometimes|required|string|in:Admin,Manager,SuperAdmin',
+                'role'       => 'sometimes|required|string|in:admin,manager,superadmin,marketing',
                 'user_type'  => 'sometimes|string|in:regular,admin',
                 'status'     => 'sometimes|in:Active,Inactive'
             ]);
