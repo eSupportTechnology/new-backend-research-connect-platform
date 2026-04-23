@@ -8,13 +8,17 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('research_views', function (Blueprint $table) {
-            $table->dropColumn('ip_address');
-        });
+        if (Schema::hasColumn('research_views', 'ip_address')) {
+            Schema::table('research_views', function (Blueprint $table) {
+                $table->dropColumn('ip_address');
+            });
+        }
 
-        Schema::table('innovation_views', function (Blueprint $table) {
-            $table->dropColumn('ip_address');
-        });
+        if (Schema::hasColumn('innovation_views', 'ip_address')) {
+            Schema::table('innovation_views', function (Blueprint $table) {
+                $table->dropColumn('ip_address');
+            });
+        }
     }
 
     public function down(): void
