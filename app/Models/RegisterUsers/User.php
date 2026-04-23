@@ -40,6 +40,9 @@ class User extends Authenticatable
         'membership_tier',
         'tier_upgraded_at',
         'tier_upgrade_source',
+        'google_id',
+        'facebook_id',
+        'oauth_provider',
     ];
 
     /**
