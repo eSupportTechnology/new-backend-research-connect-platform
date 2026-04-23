@@ -463,6 +463,7 @@ class AdvertisementController extends Controller
         $ad->update([
             'status' => 'active',
             'is_active' => true,
+            'payment_status' => 'paid',
         ]);
 
         return response()->json([
