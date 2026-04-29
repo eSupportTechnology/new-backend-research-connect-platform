@@ -170,6 +170,124 @@ class AdminPaymentController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    /**
+     * List all paid orders pending payout to sellers
+     */
+    public function getPendingPayouts(Request $request)
+    {
+        $query = Order::with([
+                'seller:id,first_name,last_name,email',
+                'buyer:id,first_name,last_name,email',
+                'sellingItem:id,title',
+                'bankDetail',
+            ])
+            ->where('status', 'paid')
+            ->orderBy('created_at', 'asc'); // oldest first — pay in order
+
+        if ($request->filled('payout_status')) {
+            $query->where('payout_status', $request->payout_status);
+        } else {
+            $query->where('payout_status', 'pending'); // default: show unpaid
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_id_string', 'like', "%{$search}%")
+                  ->orWhere('business_name', 'like', "%{$search}%")
+                  ->orWhereHas('seller', fn($u) => $u->where('email', 'like', "%{$search}%")
+                      ->orWhere('first_name', 'like', "%{$search}%"));
+            });
+        }
+
+        $orders = $query->paginate($request->get('per_page', 15));
+
+        // Summary totals
+        $pendingTotal  = Order::where('status', 'paid')->where('payout_status', 'pending')->sum('amount');
+        $paidOutTotal  = Order::where('status', 'paid')->where('payout_status', 'paid_out')->sum('amount');
+        $pendingCount  = Order::where('status', 'paid')->where('payout_status', 'pending')->count();
+        $paidOutCount  = Order::where('status', 'paid')->where('payout_status', 'paid_out')->count();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $orders,
+            'summary' => [
+                'pending_amount'  => round($pendingTotal, 2),
+                'paid_out_amount' => round($paidOutTotal, 2),
+                'pending_count'   => $pendingCount,
+                'paid_out_count'  => $paidOutCount,
+            ],
+        ]);
+    }
+
+    /**
+     * Mark an order as paid out to the seller
+     */
+    public function markPayout(Request $request, $id)
+    {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'payout_notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $order = Order::where('status', 'paid')->findOrFail($id);
+
+            if ($order->payout_status === 'paid_out') {
+                return response()->json(['success' => false, 'message' => 'This order has already been paid out.'], 400);
+            }
+
+            $order->update([
+                'payout_status' => 'paid_out',
+                'payout_notes'  => $request->payout_notes,
+                'paid_out_at'   => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payout marked successfully',
+                'data'    => $order->load(['seller:id,first_name,last_name,email', 'bankDetail']),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Order not found or not eligible'], 404);
+        }
+    }
+
+    /**
+     * Bulk mark multiple orders as paid out
+     */
+    public function bulkMarkPayout(Request $request)
+    {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'order_ids'    => 'required|array|min:1',
+            'order_ids.*'  => 'integer',
+            'payout_notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $updated = Order::where('status', 'paid')
+            ->where('payout_status', 'pending')
+            ->whereIn('id', $request->order_ids)
+            ->update([
+                'payout_status' => 'paid_out',
+                'payout_notes'  => $request->payout_notes,
+                'paid_out_at'   => now(),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$updated} order(s) marked as paid out",
+            'updated' => $updated,
+        ]);
+    }
+
     public function getTransactionAnalytics(Request $request)
     {
         // Summary counts

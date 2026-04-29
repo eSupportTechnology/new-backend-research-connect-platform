@@ -28,6 +28,9 @@ class Order extends Model
         'tracking_number',
         'delivery_status',
         'business_name',
+        'payout_status',
+        'payout_notes',
+        'paid_out_at',
     ];
 
     public function buyer()
