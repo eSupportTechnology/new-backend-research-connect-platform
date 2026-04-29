@@ -24,6 +24,7 @@ class AdminPaymentController extends Controller
             'total_orders'      => Order::count(),
             'paid_orders'       => Order::where('status', 'paid')->count(),
             'pending_orders'    => Order::where('status', 'pending')->count(),
+            'cod_orders'        => Order::where('status', 'cod_pending')->count(),
             'failed_orders'     => Order::where('status', 'failed')->count(),
             'total_ads_paid'    => Advertisement::where('payment_status', 'paid')->count(),
             'total_ads_pending' => Advertisement::where('payment_status', 'unpaid')->count(),
@@ -39,19 +40,26 @@ class AdminPaymentController extends Controller
             'buyer:id,first_name,last_name,email',
             'seller:id,first_name,last_name,email',
             'sellingItem:id,title,price',
+            'shippingAddress',
         ])->latest();
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
+        if ($request->filled('delivery_status')) {
+            $query->where('delivery_status', $request->delivery_status);
+        }
+
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('order_id_string', 'like', "%{$search}%")
+                  ->orWhere('business_name', 'like', "%{$search}%")
                   ->orWhereHas('buyer', fn($u) => $u->where('email', 'like', "%{$search}%")
                       ->orWhere('first_name', 'like', "%{$search}%"))
-                  ->orWhereHas('seller', fn($u) => $u->where('email', 'like', "%{$search}%"));
+                  ->orWhereHas('seller', fn($u) => $u->where('email', 'like', "%{$search}%")
+                      ->orWhere('first_name', 'like', "%{$search}%"));
             });
         }
 
@@ -113,9 +121,8 @@ class AdminPaymentController extends Controller
             $out = fopen('php://output', 'w');
 
             if ($type === 'orders') {
-                fputcsv($out, ['Order ID', 'Buyer', 'Seller', 'Item', 'Qty', 'Amount (LKR)', 'Method', 'Status', 'Date']);
+                fputcsv($out, ['Order ID', 'Buyer', 'Seller', 'Business Name', 'Item', 'Qty', 'Amount (LKR)', 'Payment Method', 'Payment Status', 'Delivery Status', 'Courier', 'Tracking No.', 'Date']);
                 Order::with(['buyer', 'seller', 'sellingItem'])
-                    ->where('status', 'paid')
                     ->orderByDesc('created_at')
                     ->chunk(200, function ($orders) use ($out) {
                         foreach ($orders as $o) {
@@ -123,11 +130,15 @@ class AdminPaymentController extends Controller
                                 $o->order_id_string,
                                 $o->buyer ? "{$o->buyer->first_name} {$o->buyer->last_name} ({$o->buyer->email})" : '-',
                                 $o->seller ? "{$o->seller->first_name} {$o->seller->last_name} ({$o->seller->email})" : '-',
+                                $o->business_name ?? '-',
                                 $o->sellingItem->title ?? '-',
                                 $o->quantity,
                                 number_format($o->amount, 2),
-                                $o->payhere_method ?? '-',
+                                $o->payment_method === 'cod' ? 'Cash on Delivery' : 'PayHere',
                                 $o->status,
+                                $o->delivery_status ?? 'pending',
+                                $o->courier_name ?? '-',
+                                $o->tracking_number ?? '-',
                                 $o->created_at->format('Y-m-d H:i'),
                             ]);
                         }
@@ -157,6 +168,80 @@ class AdminPaymentController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    public function getTransactionAnalytics(Request $request)
+    {
+        // Summary counts
+        $stats = [
+            'total_orders'    => Order::count(),
+            'total_revenue'   => round(Order::where('status', 'paid')->sum('amount'), 2),
+            'cod_orders'      => Order::where('payment_method', 'cod')->count(),
+            'payhere_orders'  => Order::where('payment_method', 'payhere')->count(),
+            'paid'            => Order::where('status', 'paid')->count(),
+            'cod_pending'     => Order::where('status', 'cod_pending')->count(),
+            'pending'         => Order::where('status', 'pending')->count(),
+            'failed'          => Order::where('status', 'failed')->count(),
+            'cancelled'       => Order::where('status', 'cancelled')->count(),
+
+            // Delivery funnel
+            'delivery_pending'    => Order::where('delivery_status', 'pending')->count(),
+            'delivery_dispatched' => Order::where('delivery_status', 'dispatched')->count(),
+            'delivery_in_transit' => Order::where('delivery_status', 'in_transit')->count(),
+            'delivery_delivered'  => Order::where('delivery_status', 'delivered')->count(),
+        ];
+
+        // Top buyers
+        $topBuyers = Order::select(
+                'buyer_id',
+                DB::raw('COUNT(*) as total_orders'),
+                DB::raw('SUM(amount) as total_spent')
+            )
+            ->with('buyer:id,first_name,last_name,email')
+            ->groupBy('buyer_id')
+            ->orderByDesc('total_orders')
+            ->limit(8)
+            ->get()
+            ->map(fn($r) => [
+                'user'         => $r->buyer,
+                'total_orders' => $r->total_orders,
+                'total_spent'  => round($r->total_spent, 2),
+            ]);
+
+        // Top sellers
+        $topSellers = Order::select(
+                'seller_id',
+                DB::raw('COUNT(*) as total_sales'),
+                DB::raw('SUM(amount) as total_revenue'),
+                'business_name'
+            )
+            ->with('seller:id,first_name,last_name,email')
+            ->groupBy('seller_id', 'business_name')
+            ->orderByDesc('total_sales')
+            ->limit(8)
+            ->get()
+            ->map(fn($r) => [
+                'user'          => $r->seller,
+                'business_name' => $r->business_name,
+                'total_sales'   => $r->total_sales,
+                'total_revenue' => round($r->total_revenue, 2),
+            ]);
+
+        // Recent orders (last 20 across all statuses)
+        $recentOrders = Order::with([
+                'buyer:id,first_name,last_name,email',
+                'seller:id,first_name,last_name,email',
+                'sellingItem:id,title,delivery_type',
+                'shippingAddress',
+            ])
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => compact('stats', 'topBuyers', 'topSellers', 'recentOrders'),
+        ]);
     }
 
     private function getRevenueTrend(): array

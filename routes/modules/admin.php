@@ -24,10 +24,11 @@ Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
     Route::get('/dashboard/export', [SuperAdminController::class, 'exportReport']);
 
     // Payments & Revenue
-    Route::get('/payments/overview', [AdminPaymentController::class, 'getOverview']);
-    Route::get('/payments/orders', [AdminPaymentController::class, 'getOrders']);
-    Route::get('/payments/ads', [AdminPaymentController::class, 'getAdPayments']);
-    Route::get('/payments/export', [AdminPaymentController::class, 'exportPayments']);
+    Route::get('/payments/overview',              [AdminPaymentController::class, 'getOverview']);
+    Route::get('/payments/orders',                [AdminPaymentController::class, 'getOrders']);
+    Route::get('/payments/ads',                   [AdminPaymentController::class, 'getAdPayments']);
+    Route::get('/payments/export',                [AdminPaymentController::class, 'exportPayments']);
+    Route::get('/payments/transaction-analytics', [AdminPaymentController::class, 'getTransactionAnalytics']);
 });
 
 // Public CMS data
