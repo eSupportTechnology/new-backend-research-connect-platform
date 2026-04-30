@@ -40,5 +40,8 @@ Route::get('/public/hub-cards', [HubCardController::class, 'index']);
 // Public featured performers
 Route::get('/public/featured-performers', [SuperAdminController::class, 'getFeaturedPerformers']);
 
+// All active innovators / researchers (at least 1 submission)
+Route::get('/public/all-performers', [SuperAdminController::class, 'getAllPerformers']);
+
 // Public platform stats (homepage counters)
 Route::get('/public/platform-stats', [SuperAdminController::class, 'getPlatformStats']);

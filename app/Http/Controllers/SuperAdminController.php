@@ -301,6 +301,47 @@ class SuperAdminController extends Controller
     }
 
     /**
+     * All users who have submitted at least one innovation or research (public)
+     */
+    public function getAllPerformers(Request $request)
+    {
+        try {
+            $type   = $request->query('type', 'innovator');
+            $search = $request->query('search', '');
+
+            $query = User::with(['profile'])
+                ->withCount(['innovations', 'researches']);
+
+            if ($type === 'innovator') {
+                $query->has('innovations');
+            } else {
+                $query->has('researches');
+            }
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('first_name', 'like', "%{$search}%")
+                      ->orWhere('last_name',  'like', "%{$search}%");
+                });
+            }
+
+            $users = $query->orderByDesc(
+                $type === 'innovator' ? 'innovations_count' : 'researches_count'
+            )->paginate(20);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $users,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching performers: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get featured performers for public display
      */
     public function getFeaturedPerformers(Request $request)
