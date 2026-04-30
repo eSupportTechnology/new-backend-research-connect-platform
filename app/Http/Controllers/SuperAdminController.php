@@ -286,10 +286,11 @@ class SuperAdminController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'innovations_count' => Innovation::count(),
-                    'researches_count'  => Research::count(),
-                    'investors_count'   => User::whereIn('role', ['INVESTOR', 'BOTH'])->count(),
-                    'members_count'     => User::count(),
+                    'innovations_count'       => Innovation::count(),
+                    'researches_count'        => Research::count(),
+                    'investors_count'         => User::whereIn('role', ['INVESTOR', 'BOTH'])->count(),
+                    'members_count'           => User::count(),
+                    'innovation_views_count'  => Innovation::sum('views'),
                 ],
             ]);
         } catch (\Exception $e) {
