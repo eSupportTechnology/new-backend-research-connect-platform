@@ -280,10 +280,10 @@ class AdvertisementController extends Controller
             'type' => 'required|in:side,carousel,banner',
             'position' => 'nullable|in:left,right',
             'badge' => 'nullable|string|max:255',
-            'title' => 'required|string|max:255',
-            'subtitle' => 'nullable|string|max:255',
-            'description' => 'required|string',
-            'cta_text' => 'required|string|max:255',
+            'title'       => 'nullable|string|max:255',
+            'subtitle'    => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'cta_text'    => 'nullable|string|max:255',
             'cta_link' => 'nullable|url',
             'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
             'color' => 'nullable|string|max:7',
@@ -357,10 +357,10 @@ class AdvertisementController extends Controller
             'type' => 'sometimes|in:side,carousel,banner',
             'position' => 'nullable|in:left,right',
             'badge' => 'nullable|string|max:255',
-            'title' => 'sometimes|string|max:255',
-            'subtitle' => 'nullable|string|max:255',
-            'description' => 'sometimes|string',
-            'cta_text' => 'sometimes|string|max:255',
+            'title'       => 'nullable|string|max:255',
+            'subtitle'    => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'cta_text'    => 'nullable|string|max:255',
             'cta_link' => 'nullable|url',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'color' => 'nullable|string|max:7',
@@ -380,6 +380,13 @@ class AdvertisementController extends Controller
         }
 
         $data = $validator->validated();
+
+        // Normalize empty strings to null for optional text fields
+        foreach (['title', 'subtitle', 'description', 'cta_text', 'cta_link', 'badge', 'color'] as $field) {
+            if (array_key_exists($field, $data) && ($data[$field] === '' || $data[$field] === null)) {
+                $data[$field] = null;
+            }
+        }
 
         // Normalize empty strings to null for date/time columns
         foreach (['start_date', 'end_date', 'display_start_time', 'display_end_time'] as $field) {
