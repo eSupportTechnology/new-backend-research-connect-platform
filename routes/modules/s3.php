@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\InnovationCommentController;
+use App\Http\Controllers\VideoUploadPaymentController;
 use App\Http\Controllers\InnovationLikeController;
 use App\Http\Controllers\ResearchCommentController;
 use App\Http\Controllers\ResearchLikeController;
@@ -15,6 +16,16 @@ Route::get('/innovations/{innovation}/comments', [InnovationCommentController::c
 Route::get('/innovations/{innovation}/ratings', [InnovationCommentController::class, 'getAverageRating']);
 Route::get('/research/{research}/comments', [ResearchCommentController::class, 'index']);
 Route::get('/research/{research}/ratings', [ResearchCommentController::class, 'getAverageRating']);
+
+// Video upload fee config (public)
+Route::get('/public/video-upload-config', [VideoUploadPaymentController::class, 'config']);
+
+// Video upload payment (authenticated)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/video-upload-payments/calculate',    [VideoUploadPaymentController::class, 'calculate']);
+    Route::post('/video-upload-payments/initiate',     [VideoUploadPaymentController::class, 'initiate']);
+    Route::get('/video-upload-payments/{id}/status',   [VideoUploadPaymentController::class, 'status']);
+});
 
 Route::prefix('upload')->middleware('auth:sanctum')->group(function () {
     Route::post('/research', [UploadController::class, 'uploadResearch']);

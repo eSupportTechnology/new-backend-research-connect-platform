@@ -3,9 +3,15 @@
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\AdminPaymentController;
 use App\Http\Controllers\Cms\HubCardController;
+use App\Http\Controllers\VideoUploadPaymentController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
+    // Video upload fee settings
+    Route::get('/video-upload-fee',    [VideoUploadPaymentController::class, 'getFee']);
+    Route::put('/video-upload-fee',    [VideoUploadPaymentController::class, 'updateFee']);
+    Route::get('/video-upload-payments', [VideoUploadPaymentController::class, 'adminIndex']);
+
     // Dashboard Stats
     Route::get('/dashboard/stats', [SuperAdminController::class, 'getDashboardStats']);
     

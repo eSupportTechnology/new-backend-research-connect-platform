@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Advertisement\Advertisement;
 use App\Models\MembershipPayment;
 use App\Models\Order;
+use App\Models\VideoUploadPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -114,6 +115,23 @@ class PayHereController extends Controller
                     } else {
                         $payment->update(['status' => 'failed']);
                         Log::warning("PayHere: Membership payment failed. Status: $status_code, Order: $order_id");
+                    }
+                }
+            }
+            // Case 4: Video Upload Payment
+            else if (preg_match('/VID(\d+)T/', $order_id, $matches)) {
+                $payment = VideoUploadPayment::find($matches[1]);
+
+                if ($payment) {
+                    if ($status_code == 2) {
+                        $token = $payment->generateUploadToken();
+                        $payment->update(['payhere_payment_id' => $request->payment_id]);
+                        Log::info("PayHere: Video upload payment successful. ID: {$payment->id}, token issued.");
+                    } elseif ($status_code == 0) {
+                        Log::info("PayHere: Video upload payment pending. ID: {$payment->id}");
+                    } else {
+                        $payment->update(['status' => 'failed']);
+                        Log::warning("PayHere: Video upload payment failed. Status: $status_code, ID: {$payment->id}");
                     }
                 }
             }
