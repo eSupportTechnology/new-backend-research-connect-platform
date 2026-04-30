@@ -45,6 +45,7 @@ Route::middleware(['auth:sanctum'])->prefix('admin/advertisements')->group(funct
     Route::get('/analytics', [AdvertisementController::class, 'analytics']);
 
     // Review actions
-    Route::post('/{id}/approve', [AdvertisementController::class, 'approve']);
-    Route::post('/{id}/reject', [AdvertisementController::class, 'reject']);
+    Route::post('/{id}/approve',        [AdvertisementController::class, 'approve']);
+    Route::post('/{id}/reject',         [AdvertisementController::class, 'reject']);
+    Route::post('/{id}/admin-override', [AdvertisementController::class, 'adminOverride']);
 });

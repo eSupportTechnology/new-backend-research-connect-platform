@@ -32,7 +32,6 @@ class Advertisement extends Model
         'rejection_reason',
         'start_date',
         'end_date',
-        'max_impressions',
         'current_impressions',
         'clicks',
         'display_start_time',
@@ -87,23 +86,16 @@ class Advertisement extends Model
                     ->orWhere('end_date', '>=', $now);
             })
 
-            // Impression cap (0 means unlimited)
-            ->where(function ($q) {
-                $q->whereNull('max_impressions')
-                    ->orWhere('max_impressions', 0)
-                    ->orWhereRaw('current_impressions < max_impressions');
-            })
-
-            // ✅ FIX: display_start_time — own group
+            // display_start_time — use TIME() to handle full datetime values stored in column
             ->where(function ($q) use ($currentTime) {
                 $q->whereNull('display_start_time')
-                    ->orWhere('display_start_time', '<=', $currentTime);
+                    ->orWhereRaw('TIME(display_start_time) <= ?', [$currentTime]);
             })
 
-            // ✅ FIX: display_end_time — own separate group
+            // display_end_time — same approach
             ->where(function ($q) use ($currentTime) {
                 $q->whereNull('display_end_time')
-                    ->orWhere('display_end_time', '>=', $currentTime);
+                    ->orWhereRaw('TIME(display_end_time) >= ?', [$currentTime]);
             });
     }
 
