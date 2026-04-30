@@ -97,6 +97,7 @@ class ProfileController extends Controller
             $profileData = $profile->toArray();
             $profileData['profile_image_url'] = $this->getS3Url($profile->profile_image);
             $profileData['cover_image_url'] = $this->getS3Url($profile->cover_image);
+            $profileData['email'] = $user->email;
 
             // Attach experiences/educations directly into profileData
             $profileData['experiences'] = $profile->experiences;
