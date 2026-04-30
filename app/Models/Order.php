@@ -21,7 +21,16 @@ class Order extends Model
         'amount',
         'status',
         'payhere_payment_id',
-        'payhere_method'
+        'payhere_method',
+        'payment_method',
+        'courier_name',
+        'courier_phone',
+        'tracking_number',
+        'delivery_status',
+        'business_name',
+        'payout_status',
+        'payout_notes',
+        'paid_out_at',
     ];
 
     public function buyer()

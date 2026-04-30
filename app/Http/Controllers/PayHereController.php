@@ -22,7 +22,7 @@ class PayHereController extends Controller
         $status_code = $request->status_code;
         $md5sig = $request->md5sig;
 
-        $merchant_secret = env('PAYHERE_MERCHANT_SECRET');
+        $merchant_secret = config('services.payhere.merchant_secret');
 
         // Verify Signature
         $local_md5sig = strtoupper(

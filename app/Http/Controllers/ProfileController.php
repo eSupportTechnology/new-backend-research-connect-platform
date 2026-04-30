@@ -126,6 +126,15 @@ class ProfileController extends Controller
                     return $research;
                 });
 
+            // Get user's active selling items
+            $sellingItems = \App\Models\Innovation\SellingItem::where('user_id', $user->id)
+                ->where('status', 'active')
+                ->where(function ($q) {
+                    $q->where('stock_quantity', '>', 0)->orWhereNull('stock_quantity');
+                })
+                ->orderBy('listed_at', 'desc')
+                ->get();
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -135,6 +144,7 @@ class ProfileController extends Controller
                     'educations' => $profile->educations,
                     'innovations' => $innovations,
                     'researches' => $researches,
+                    'selling_items' => $sellingItems,
                 ]
             ]);
 
@@ -156,13 +166,14 @@ class ProfileController extends Controller
     public function update(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'      => 'sometimes|string|max:255',
-            'email'     => 'sometimes|nullable|email|max:255',
-            'telephone' => 'sometimes|nullable|string|max:20',
-            'dob'       => 'sometimes|nullable|date',
-            'bio'       => 'sometimes|nullable|string|max:2000',
-            'skills'    => 'sometimes|array',
-            'skills.*'  => 'string',
+            'name'          => 'sometimes|string|max:255',
+            'business_name' => 'sometimes|nullable|string|max:255',
+            'email'         => 'sometimes|nullable|email|max:255',
+            'telephone'     => 'sometimes|nullable|string|max:20',
+            'dob'           => 'sometimes|nullable|date',
+            'bio'           => 'sometimes|nullable|string|max:2000',
+            'skills'        => 'sometimes|array',
+            'skills.*'      => 'string',
         ]);
 
         if ($validator->fails()) {
@@ -183,7 +194,7 @@ class ProfileController extends Controller
         }
 
         $profile->update($request->only([
-            'name', 'email', 'telephone', 'dob', 'bio', 'skills',
+            'name', 'business_name', 'email', 'telephone', 'dob', 'bio', 'skills',
         ]));
 
         $fresh                        = $profile->fresh()->toArray();
