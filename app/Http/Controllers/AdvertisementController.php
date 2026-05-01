@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Models\AdPricingConfig;
 use App\Models\Advertisement\Advertisement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -46,7 +47,7 @@ class AdvertisementController extends Controller
                 'display_end_time' => $ad->display_end_time,
                 'order' => $ad->order,
                 'is_active' => $ad->is_active,
-                'max_impressions' => $ad->max_impressions,
+
                 'current_impressions' => $ad->current_impressions,
                 'clicks' => $ad->clicks,
             ];
@@ -94,7 +95,7 @@ class AdvertisementController extends Controller
                     'end_date' => $ad->end_date ? $ad->end_date->setTimezone('Asia/Colombo')->format('Y-m-d') : null,
                     'display_start_time' => $ad->display_start_time ? $ad->display_start_time->format('H:i') : null,
                     'display_end_time' => $ad->display_end_time ? $ad->display_end_time->format('H:i') : null,
-                    'max_impressions' => $ad->max_impressions,
+    
                     'current_impressions' => $ad->current_impressions,
                     'clicks' => $ad->clicks,
                     'created_at' => $ad->created_at,
@@ -201,6 +202,32 @@ class AdvertisementController extends Controller
     }
 
     /**
+     * Get popup advertisements
+     */
+    public function getPopupAds()
+    {
+        $ads = Advertisement::active()
+            ->ofType('popup')
+            ->orderBy('order', 'asc')
+            ->get()
+            ->map(function ($ad) {
+                return [
+                    'id'       => $ad->id,
+                    'badge'    => $ad->badge,
+                    'title'    => $ad->title,
+                    'subtitle' => $ad->subtitle,
+                    'desc'     => $ad->description,
+                    'image'    => $ad->image_url,
+                    'color'    => $ad->color ?? '#e53e3e',
+                    'cta_text' => $ad->cta_text,
+                    'link'     => $ad->cta_link,
+                ];
+            });
+
+        return response()->json(['success' => true, 'data' => $ads]);
+    }
+
+    /**
      * Record an impression
      */
     public function recordImpression(Request $request, $id)
@@ -254,10 +281,10 @@ class AdvertisementController extends Controller
             'type' => 'required|in:side,carousel,banner',
             'position' => 'nullable|in:left,right',
             'badge' => 'nullable|string|max:255',
-            'title' => 'required|string|max:255',
-            'subtitle' => 'nullable|string|max:255',
-            'description' => 'required|string',
-            'cta_text' => 'required|string|max:255',
+            'title'       => 'nullable|string|max:255',
+            'subtitle'    => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'cta_text'    => 'nullable|string|max:255',
             'cta_link' => 'nullable|url',
             'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
             'color' => 'nullable|string|max:7',
@@ -265,7 +292,6 @@ class AdvertisementController extends Controller
             'is_active' => 'boolean',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
-            'max_impressions' => 'nullable|integer|min:0',
             'display_start_time' => 'nullable|date_format:H:i',
             'display_end_time' => 'nullable|date_format:H:i',
         ]);
@@ -300,6 +326,11 @@ class AdvertisementController extends Controller
             $data['end_date'] = Carbon::parse($data['end_date'], 'Asia/Colombo')->endOfDay()->utc();
         }
 
+        // Admin-created ads are auto-approved — no payment needed
+        $data['status']         = 'active';
+        $data['payment_status'] = 'paid';
+        $data['is_active']      = true;
+
         $ad = Advertisement::create($data);
 
         return response()->json([
@@ -327,10 +358,10 @@ class AdvertisementController extends Controller
             'type' => 'sometimes|in:side,carousel,banner',
             'position' => 'nullable|in:left,right',
             'badge' => 'nullable|string|max:255',
-            'title' => 'sometimes|string|max:255',
-            'subtitle' => 'nullable|string|max:255',
-            'description' => 'sometimes|string',
-            'cta_text' => 'sometimes|string|max:255',
+            'title'       => 'nullable|string|max:255',
+            'subtitle'    => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+            'cta_text'    => 'nullable|string|max:255',
             'cta_link' => 'nullable|url',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'color' => 'nullable|string|max:7',
@@ -338,7 +369,6 @@ class AdvertisementController extends Controller
             'is_active' => 'boolean',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
-            'max_impressions' => 'nullable|integer|min:0',
             'display_start_time' => 'nullable|date_format:H:i',
             'display_end_time' => 'nullable|date_format:H:i',
         ]);
@@ -351,6 +381,13 @@ class AdvertisementController extends Controller
         }
 
         $data = $validator->validated();
+
+        // Normalize empty strings to null for optional text fields
+        foreach (['title', 'subtitle', 'description', 'cta_text', 'cta_link', 'badge', 'color'] as $field) {
+            if (array_key_exists($field, $data) && ($data[$field] === '' || $data[$field] === null)) {
+                $data[$field] = null;
+            }
+        }
 
         // Normalize empty strings to null for date/time columns
         foreach (['start_date', 'end_date', 'display_start_time', 'display_end_time'] as $field) {
@@ -447,29 +484,73 @@ class AdvertisementController extends Controller
     }
 
     /**
-     * Approve an advertisement request
+     * Approve an advertisement — ONLY allowed when payment is confirmed.
      */
     public function approve(Request $request, $id)
     {
         $ad = Advertisement::find($id);
 
         if (!$ad) {
+            return response()->json(['success' => false, 'message' => 'Advertisement not found.'], 404);
+        }
+
+        if ($ad->payment_status !== 'paid') {
             return response()->json([
                 'success' => false,
-                'message' => 'Advertisement not found',
-            ], 404);
+                'message' => 'Cannot approve: payment has not been confirmed for this advertisement. The user must complete payment first.',
+                'payment_status' => $ad->payment_status,
+            ], 422);
+        }
+
+        $ad->update(['status' => 'active', 'is_active' => true]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Advertisement approved and is now live.',
+            'data'    => $ad,
+        ]);
+    }
+
+    /**
+     * Admin emergency override — activates an unpaid ad with explicit acknowledgment.
+     * Strictly for exceptional cases only. Logged for audit purposes.
+     */
+    public function adminOverride(Request $request, $id)
+    {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'reason' => 'required|string|min:10',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A reason is required for admin override.',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $ad = Advertisement::find($id);
+
+        if (!$ad) {
+            return response()->json(['success' => false, 'message' => 'Advertisement not found.'], 404);
         }
 
         $ad->update([
-            'status' => 'active',
-            'is_active' => true,
+            'status'         => 'active',
+            'is_active'      => true,
             'payment_status' => 'paid',
+        ]);
+
+        \Illuminate\Support\Facades\Log::warning('Admin override: Advertisement activated without payment', [
+            'ad_id'    => $ad->id,
+            'admin_id' => auth()->id(),
+            'reason'   => $request->reason,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Advertisement approved successfully',
-            'data' => $ad,
+            'message' => 'Admin override applied. Advertisement is now live. This action has been logged.',
+            'data'    => $ad,
         ]);
     }
 
@@ -557,5 +638,27 @@ class AdvertisementController extends Controller
             'success' => true,
             'message' => "Successfully processed {$processedCount} advertisements.",
         ]);
+    }
+
+    /** Admin: get ad type pricing */
+    public function getPricing()
+    {
+        return response()->json(['success' => true, 'data' => AdPricingConfig::config()]);
+    }
+
+    /** Admin: update ad type pricing */
+    public function updatePricing(Request $request)
+    {
+        $validated = $request->validate([
+            'carousel_price' => 'required|numeric|min:0',
+            'banner_price'   => 'required|numeric|min:0',
+            'side_price'     => 'required|numeric|min:0',
+            'popup_price'    => 'required|numeric|min:0',
+        ]);
+
+        $config = AdPricingConfig::config();
+        $config->update($validated);
+
+        return response()->json(['success' => true, 'data' => $config, 'message' => 'Ad pricing updated']);
     }
 }

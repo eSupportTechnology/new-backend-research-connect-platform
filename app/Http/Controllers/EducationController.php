@@ -62,8 +62,8 @@ class EducationController extends Controller
             'description'    => 'nullable|string',
             'start_month'    => 'required|string|max:20',
             'start_year'     => 'required|integer|min:1900|max:' . date('Y'),
-            'end_month'      => 'required|string|max:20',
-            'end_year'       => 'required|integer|min:1900|max:' . date('Y'),
+            'end_month'      => 'nullable|string|max:20',
+            'end_year'       => 'nullable|integer|min:1900|max:' . date('Y'),
         ]);
 
         if ($validator->fails()) {
@@ -94,8 +94,8 @@ class EducationController extends Controller
             'description'    => $request->description    ?: null,
             'start_month'    => $request->start_month,
             'start_year'     => $request->start_year,
-            'end_month'      => $request->end_month,
-            'end_year'       => $request->end_year,
+            'end_month'      => $request->end_month ?: null,
+            'end_year'       => $request->end_year  ?: null,
         ]);
 
         return response()->json([
@@ -124,8 +124,8 @@ class EducationController extends Controller
             'description'    => 'nullable|string',
             'start_month'    => 'sometimes|string|max:20',
             'start_year'     => 'sometimes|integer|min:1900|max:' . date('Y'),
-            'end_month'      => 'sometimes|string|max:20',
-            'end_year'       => 'sometimes|integer|min:1900|max:' . date('Y'),
+            'end_month'      => 'nullable|string|max:20',
+            'end_year'       => 'nullable|integer|min:1900|max:' . date('Y'),
         ]);
 
         if ($validator->fails()) {
@@ -157,8 +157,8 @@ class EducationController extends Controller
             'description'    => $request->description      ?? $education->description,
             'start_month'    => $request->start_month      ?? $education->start_month,
             'start_year'     => $request->start_year       ?? $education->start_year,
-            'end_month'      => $request->end_month        ?? $education->end_month,
-            'end_year'       => $request->end_year         ?? $education->end_year,
+            'end_month'      => $request->has('end_month') ? ($request->end_month ?: null) : $education->end_month,
+            'end_year'       => $request->has('end_year')  ? ($request->end_year  ?: null) : $education->end_year,
         ]);
 
         return response()->json([

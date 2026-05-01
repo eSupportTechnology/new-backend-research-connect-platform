@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MembershipPayment;
+use App\Models\MembershipPricing;
 use App\Models\RegisterUsers\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -74,7 +75,8 @@ class MembershipController extends Controller
         }
 
         $priceKey = $current . '_to_' . $targetTier;
-        $amount   = self::UPGRADE_PRICES[$priceKey] ?? null;
+        $pricing  = MembershipPricing::config();
+        $amount   = $pricing->{$priceKey} ?? (self::UPGRADE_PRICES[$priceKey] ?? null);
 
         if (!$amount) {
             return response()->json(['success' => false, 'message' => 'Invalid upgrade path.'], 400);
@@ -127,20 +129,21 @@ class MembershipController extends Controller
 
     private function getUpgradePlans(string $current): array
     {
-        $plans = [];
+        $pricing = MembershipPricing::config();
+        $plans   = [];
 
         if ($current === 'bronze') {
             $plans[] = [
                 'from'     => 'bronze',
                 'to'       => 'silver',
-                'price'    => self::UPGRADE_PRICES['bronze_to_silver'],
+                'price'    => (float) $pricing->bronze_to_silver,
                 'currency' => 'LKR',
                 'features' => ['Full research & innovation access', 'Full marketplace access', 'Silver badge'],
             ];
             $plans[] = [
                 'from'     => 'bronze',
                 'to'       => 'gold',
-                'price'    => self::UPGRADE_PRICES['bronze_to_gold'],
+                'price'    => (float) $pricing->bronze_to_gold,
                 'currency' => 'LKR',
                 'features' => ['VIP Gold badge', 'All Silver features', 'Investor Zone VIP', 'Download research PDFs'],
             ];
@@ -148,7 +151,7 @@ class MembershipController extends Controller
             $plans[] = [
                 'from'     => 'silver',
                 'to'       => 'gold',
-                'price'    => self::UPGRADE_PRICES['silver_to_gold'],
+                'price'    => (float) $pricing->silver_to_gold,
                 'currency' => 'LKR',
                 'features' => ['VIP Gold badge', 'Investor Zone VIP', 'Download research PDFs'],
             ];

@@ -15,3 +15,9 @@ Route::prefix('community')->group(function () {
         Route::post('/posts/{id}/comment', [CommunityController::class, 'storeComment']);
     });
 });
+
+// Admin community moderation
+Route::middleware('auth:sanctum')->prefix('admin/community')->group(function () {
+    Route::get('/posts', [CommunityController::class, 'adminIndex']);
+    Route::delete('/posts/{id}', [CommunityController::class, 'adminDestroy']);
+});

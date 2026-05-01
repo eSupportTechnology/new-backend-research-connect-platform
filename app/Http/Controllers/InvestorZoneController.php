@@ -446,7 +446,6 @@ class InvestorZoneController extends Controller
             'allowLikes' => $post->allow_likes,
             'allowContactSharing' => $post->allow_contact_sharing,
             'requestCollaboration' => $post->request_collaboration,
-            // ── Full author profile for detail page ──
             'authorProfile' => [
                 'name' => $authorName,
                 'avatar' => $authorAvatar,
@@ -461,5 +460,36 @@ class InvestorZoneController extends Controller
                 'user_id' => $user?->id ?? null,
             ],
         ]);
+    }
+
+    // ── Admin: list all posts ────────────────────────────────────────────────
+    public function adminIndex(Request $request)
+    {
+        $query = InvestorZonePost::with(['user:id,first_name,last_name,email'])
+            ->withCount('likes')
+            ->latest();
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('title', 'like', "%{$s}%")
+                  ->orWhere('description', 'like', "%{$s}%");
+            });
+        }
+
+        if ($request->filled('type'))     $query->where('type', $request->type);
+        if ($request->filled('category')) $query->where('category', $request->category);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $query->paginate($request->get('per_page', 15)),
+        ]);
+    }
+
+    // ── Admin: delete a post ─────────────────────────────────────────────────
+    public function adminDestroy($id)
+    {
+        InvestorZonePost::findOrFail($id)->delete();
+        return response()->json(['success' => true, 'message' => 'Post removed']);
     }
 }

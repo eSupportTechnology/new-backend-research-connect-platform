@@ -119,12 +119,17 @@ class AdminPaymentController extends Controller
 
         $callback = function () use ($type) {
             $out = fopen('php://output', 'w');
+            // BOM for Excel UTF-8 recognition
+            fwrite($out, "\xEF\xBB\xBF");
+
+            // Prefix dates with \t so Excel treats them as text, preventing auto-conversion and ###### display
+            $d = fn($dt) => $dt ? "\t" . $dt->format('d M Y  H:i') : '-';
 
             if ($type === 'orders') {
                 fputcsv($out, ['Order ID', 'Buyer', 'Seller', 'Business Name', 'Item', 'Qty', 'Amount (LKR)', 'Payment Method', 'Payment Status', 'Delivery Status', 'Courier', 'Tracking No.', 'Date']);
                 Order::with(['buyer', 'seller', 'sellingItem'])
                     ->orderByDesc('created_at')
-                    ->chunk(200, function ($orders) use ($out) {
+                    ->chunk(200, function ($orders) use ($out, $d) {
                         foreach ($orders as $o) {
                             fputcsv($out, [
                                 $o->order_id_string,
@@ -139,7 +144,7 @@ class AdminPaymentController extends Controller
                                 $o->delivery_status ?? 'pending',
                                 $o->courier_name ?? '-',
                                 $o->tracking_number ?? '-',
-                                $o->created_at->format('Y-m-d H:i'),
+                                $d($o->created_at),
                             ]);
                         }
                     });
@@ -148,7 +153,7 @@ class AdminPaymentController extends Controller
                 Advertisement::with('user')
                     ->where('payment_status', 'paid')
                     ->orderByDesc('created_at')
-                    ->chunk(200, function ($ads) use ($out) {
+                    ->chunk(200, function ($ads) use ($out, $d) {
                         foreach ($ads as $ad) {
                             fputcsv($out, [
                                 $ad->id,
@@ -158,7 +163,7 @@ class AdminPaymentController extends Controller
                                 number_format($ad->price, 2),
                                 $ad->payment_status,
                                 $ad->payment_id ?? '-',
-                                $ad->created_at->format('Y-m-d H:i'),
+                                $d($ad->created_at),
                             ]);
                         }
                     });
@@ -168,6 +173,33 @@ class AdminPaymentController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Orders that have missed their delivery deadline and are not yet delivered.
+     * Prototype items have a 4-day deadline; all others 14 days.
+     */
+    public function getOverdueDeliveries(Request $request)
+    {
+        $query = Order::with([
+                'seller:id,first_name,last_name,email',
+                'buyer:id,first_name,last_name,email',
+                'sellingItem:id,title,type',
+            ])
+            ->whereNotNull('delivery_deadline')
+            ->where('delivery_deadline', '<', now())
+            ->where('delivery_status', '!=', 'delivered')
+            ->whereNotIn('status', ['cancelled', 'failed'])
+            ->orderBy('delivery_deadline', 'asc');
+
+        $totalCount = (clone $query)->count();
+        $orders     = $query->paginate($request->get('per_page', 15));
+
+        return response()->json([
+            'success'     => true,
+            'data'        => $orders,
+            'total_count' => $totalCount,
+        ]);
     }
 
     /**
@@ -181,7 +213,15 @@ class AdminPaymentController extends Controller
                 'sellingItem:id,title',
                 'bankDetail',
             ])
-            ->where('status', 'paid')
+            ->where(function ($q) {
+                // PayHere-paid orders are always payout-eligible
+                $q->where('status', 'paid')
+                  // COD orders become payout-eligible after delivery is confirmed
+                  ->orWhere(function ($sq) {
+                      $sq->where('payment_method', 'cod')
+                         ->where('delivery_status', 'delivered');
+                  });
+            })
             ->orderBy('created_at', 'asc'); // oldest first — pay in order
 
         if ($request->filled('payout_status')) {
@@ -202,11 +242,18 @@ class AdminPaymentController extends Controller
 
         $orders = $query->paginate($request->get('per_page', 15));
 
-        // Summary totals
-        $pendingTotal  = Order::where('status', 'paid')->where('payout_status', 'pending')->sum('amount');
-        $paidOutTotal  = Order::where('status', 'paid')->where('payout_status', 'paid_out')->sum('amount');
-        $pendingCount  = Order::where('status', 'paid')->where('payout_status', 'pending')->count();
-        $paidOutCount  = Order::where('status', 'paid')->where('payout_status', 'paid_out')->count();
+        // Summary totals — covers both PayHere-paid and COD-delivered orders
+        $eligibleBase = fn() => Order::where(function ($q) {
+            $q->where('status', 'paid')
+              ->orWhere(function ($sq) {
+                  $sq->where('payment_method', 'cod')->where('delivery_status', 'delivered');
+              });
+        });
+
+        $pendingTotal = $eligibleBase()->where('payout_status', 'pending')->sum('amount');
+        $paidOutTotal = $eligibleBase()->where('payout_status', 'paid_out')->sum('amount');
+        $pendingCount = $eligibleBase()->where('payout_status', 'pending')->count();
+        $paidOutCount = $eligibleBase()->where('payout_status', 'paid_out')->count();
 
         return response()->json([
             'success' => true,

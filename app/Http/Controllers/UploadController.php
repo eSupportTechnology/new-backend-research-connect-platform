@@ -163,16 +163,17 @@ class UploadController extends Controller
     {
 
         $validator = Validator::make($request->all(), [
-            'document' => 'required|file|mimes:mp4,avi,mov,webm,mkv|max:512000', // 500MB max
-            'title' => 'required|string|max:255',
-            'abstract' => 'required|string|max:500',
-            'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
-            'category' => 'required|string',
-            'firstName' => 'required|string|max:100',
-            'lastName' => 'required|string|max:100',
-            'tags' => 'nullable|string',
-            'price' => 'required|in:yes,no',
-            'priceAmount' => 'required_if:price,yes|nullable|numeric|min:0',
+            'document'      => 'required|file|mimes:mp4,avi,mov,webm,mkv',
+            'title'         => 'required|string|max:255',
+            'abstract'      => 'required|string|max:500',
+            'thumbnail'     => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+            'category'      => 'required|string',
+            'firstName'     => 'required|string|max:100',
+            'lastName'      => 'required|string|max:100',
+            'tags'          => 'nullable|string',
+            'price'         => 'required|in:yes,no',
+            'priceAmount'   => 'required_if:price,yes|nullable|numeric|min:0',
+            'upload_token'  => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -181,6 +182,41 @@ class UploadController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
+
+        // ── Video upload fee gate ─────────────────────────────────────────────
+        $fileSizeBytes = $request->file('document')->getSize();
+        $fileSizeMb    = (int) ceil($fileSizeBytes / (1024 * 1024));
+        $fee           = \App\Models\VideoUploadFee::config();
+        $calc          = $fee->calculate($fileSizeMb);
+
+        if ($calc['requires_payment']) {
+            $token = $request->input('upload_token');
+            if (!$token) {
+                return response()->json([
+                    'success'          => false,
+                    'code'             => 'PAYMENT_REQUIRED',
+                    'message'          => 'This video exceeds the free limit. Please complete payment before uploading.',
+                    'payment_details'  => $calc,
+                ], 402);
+            }
+
+            $payment = \App\Models\VideoUploadPayment::where('upload_token', $token)
+                ->where('user_id', auth()->id())
+                ->where('status', 'paid')
+                ->first();
+
+            if (!$payment) {
+                return response()->json([
+                    'success' => false,
+                    'code'    => 'INVALID_PAYMENT_TOKEN',
+                    'message' => 'Invalid or expired payment token. Please complete payment first.',
+                ], 402);
+            }
+
+            // Mark token as used so it cannot be reused
+            $payment->update(['status' => 'used']);
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         // Requirement Check for Paid Content
         if ($request->price === 'yes') {
