@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Models\AdPricingConfig;
 use App\Models\Advertisement\Advertisement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -637,5 +638,27 @@ class AdvertisementController extends Controller
             'success' => true,
             'message' => "Successfully processed {$processedCount} advertisements.",
         ]);
+    }
+
+    /** Admin: get ad type pricing */
+    public function getPricing()
+    {
+        return response()->json(['success' => true, 'data' => AdPricingConfig::config()]);
+    }
+
+    /** Admin: update ad type pricing */
+    public function updatePricing(Request $request)
+    {
+        $validated = $request->validate([
+            'carousel_price' => 'required|numeric|min:0',
+            'banner_price'   => 'required|numeric|min:0',
+            'side_price'     => 'required|numeric|min:0',
+            'popup_price'    => 'required|numeric|min:0',
+        ]);
+
+        $config = AdPricingConfig::config();
+        $config->update($validated);
+
+        return response()->json(['success' => true, 'data' => $config, 'message' => 'Ad pricing updated']);
     }
 }

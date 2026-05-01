@@ -31,6 +31,8 @@ class Order extends Model
         'payout_status',
         'payout_notes',
         'paid_out_at',
+        'delivery_deadline',
+        'delivered_at',
     ];
 
     public function buyer()

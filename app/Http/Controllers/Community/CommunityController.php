@@ -218,4 +218,36 @@ class CommunityController extends Controller
             ], 500);
         }
     }
+
+    // ── Admin: list all posts ────────────────────────────────────────────────
+    public function adminIndex(Request $request)
+    {
+        $query = CommunityPost::with(['user:id,first_name,last_name,email'])
+            ->withCount(['likes', 'comments'])
+            ->latest();
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('title', 'like', "%{$s}%")
+                  ->orWhere('description', 'like', "%{$s}%");
+            });
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => $query->paginate($request->get('per_page', 15)),
+        ]);
+    }
+
+    // ── Admin: delete a post ─────────────────────────────────────────────────
+    public function adminDestroy($id)
+    {
+        CommunityPost::findOrFail($id)->delete();
+        return response()->json(['success' => true, 'message' => 'Post removed']);
+    }
 }

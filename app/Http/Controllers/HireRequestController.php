@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminNotification;
 use App\Models\HireRequest;
 use App\Models\RegisterUsers\User;
 use App\Notifications\HireRequestResponseNotification;
@@ -68,6 +69,14 @@ class HireRequestController extends Controller
         if ($provider) {
             $provider->notify(new NewHireRequestNotification($hireRequest));
         }
+
+        $requester = Auth::user();
+        AdminNotification::notify(
+            'new_hire_request',
+            'New Hire Request Submitted',
+            "{$requester->first_name} {$requester->last_name} sent a hire request to {$provider?->first_name} {$provider?->last_name}: "{$hireRequest->title}".",
+            ['hire_request_id' => $hireRequest->id, 'requester_email' => $requester->email]
+        );
 
         return response()->json([
             'success' => true,

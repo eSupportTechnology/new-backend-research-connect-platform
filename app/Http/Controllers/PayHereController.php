@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminNotification;
 use App\Models\Advertisement\Advertisement;
 use App\Models\MembershipPayment;
 use App\Models\Order;
@@ -80,6 +81,16 @@ class PayHereController extends Controller
                             $item->save();
                         }
 
+                        $buyer      = $order->buyer;
+                        $buyerName  = $buyer ? "{$buyer->first_name} {$buyer->last_name}" : 'A buyer';
+                        $itemTitle  = $item?->title ?? 'an item';
+                        AdminNotification::notify(
+                            'new_order',
+                            'New Order Paid',
+                            "{$buyerName} paid LKR " . number_format($order->amount, 2) . " for "{$itemTitle}".",
+                            ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $order->amount]
+                        );
+
                         Log::info("PayHere: Order payment successful. Internal ID: $internal_order_id");
                     } else if ($status_code == 0) { // 0 = Pending
                         $order->update(['status' => 'pending']);
@@ -126,6 +137,16 @@ class PayHereController extends Controller
                     if ($status_code == 2) {
                         $token = $payment->generateUploadToken();
                         $payment->update(['payhere_payment_id' => $request->payment_id]);
+
+                        $uploader = $payment->user;
+                        $uploaderName = $uploader ? "{$uploader->first_name} {$uploader->last_name}" : 'A user';
+                        AdminNotification::notify(
+                            'new_video_upload',
+                            'Video Upload Payment Received',
+                            "{$uploaderName} paid LKR " . number_format($payment->amount, 2) . " for a video upload ({$payment->file_size_mb} MB). Pending validation.",
+                            ['payment_id' => $payment->id, 'user_id' => $payment->user_id, 'file_size_mb' => $payment->file_size_mb]
+                        );
+
                         Log::info("PayHere: Video upload payment successful. ID: {$payment->id}, token issued.");
                     } elseif ($status_code == 0) {
                         Log::info("PayHere: Video upload payment pending. ID: {$payment->id}");

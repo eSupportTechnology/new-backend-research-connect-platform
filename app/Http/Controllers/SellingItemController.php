@@ -3,6 +3,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminNotification;
 use App\Models\Order;
 use App\Models\Profile\BankDetail;
 use App\Models\Profile\ShippingAddress;
@@ -673,6 +674,9 @@ class SellingItemController extends Controller
             $sellerProfile   = $item->user->profile;
             $sellerBusiness  = $sellerProfile ? ($sellerProfile->business_name ?? ($item->user->first_name . ' ' . $item->user->last_name)) : null;
 
+            $deadlineDays     = ($item->type === 'prototype') ? 4 : 14;
+            $deliveryDeadline = now()->addDays($deadlineDays);
+
             $order = Order::create([
                 'order_id_string'    => 'PENDING',
                 'buyer_id'           => $buyer->id,
@@ -686,6 +690,7 @@ class SellingItemController extends Controller
                 'payment_method'     => 'payhere',
                 'delivery_status'    => 'pending',
                 'business_name'      => $sellerBusiness,
+                'delivery_deadline'  => $deliveryDeadline,
             ]);
 
             $merchant_id     = config('services.payhere.merchant_id');
@@ -758,6 +763,9 @@ class SellingItemController extends Controller
             $sellerProfile  = $item->user->profile ?? null;
             $sellerBusiness = $sellerProfile ? ($sellerProfile->business_name ?? ($item->user->first_name . ' ' . $item->user->last_name)) : null;
 
+            $deadlineDays     = ($item->type === 'prototype') ? 4 : 14;
+            $deliveryDeadline = now()->addDays($deadlineDays);
+
             $order = Order::create([
                 'order_id_string'    => $order_id_string,
                 'buyer_id'           => $buyer->id,
@@ -770,11 +778,19 @@ class SellingItemController extends Controller
                 'payment_method'     => 'cod',
                 'delivery_status'    => 'pending',
                 'business_name'      => $sellerBusiness,
+                'delivery_deadline'  => $deliveryDeadline,
             ]);
 
             // Reserve stock immediately for COD
             $item->stock_quantity = max(0, $item->stock_quantity - $request->quantity);
             $item->save();
+
+            AdminNotification::notify(
+                'new_order',
+                'New COD Order Placed',
+                "{$buyer->first_name} {$buyer->last_name} placed a Cash on Delivery order for "{$item->title}" — LKR " . number_format($totalAmount, 2) . ".",
+                ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount]
+            );
 
             return response()->json([
                 'success' => true,
@@ -835,7 +851,17 @@ class SellingItemController extends Controller
         try {
             $order = Order::where('seller_id', auth()->id())->findOrFail($id);
 
-            $order->update(['delivery_status' => $request->delivery_status]);
+            $updateData = ['delivery_status' => $request->delivery_status];
+
+            if ($request->delivery_status === 'delivered') {
+                $updateData['delivered_at']   = now();
+                // COD orders become payout-eligible once delivery is confirmed
+                if ($order->payment_method === 'cod') {
+                    $updateData['payout_status'] = 'pending';
+                }
+            }
+
+            $order->update($updateData);
 
             return response()->json(['success' => true, 'message' => 'Delivery status updated', 'data' => $order]);
 

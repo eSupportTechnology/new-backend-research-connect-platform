@@ -16,3 +16,9 @@ Route::prefix('investorzone')->group(function () {
         Route::post('project/{id}/like', [InvestorZoneController::class, 'toggleLike']);
     });
 });
+
+// Admin investor zone moderation
+Route::middleware('auth:sanctum')->prefix('admin/investorzone')->group(function () {
+    Route::get('/posts', [InvestorZoneController::class, 'adminIndex']);
+    Route::delete('/posts/{id}', [InvestorZoneController::class, 'adminDestroy']);
+});

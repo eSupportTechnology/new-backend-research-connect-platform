@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminNotification;
 use App\Models\RegisterUsers\Investor;
 use App\Models\RegisterUsers\ParentModel;
 use App\Models\RegisterUsers\Student;
@@ -36,6 +37,13 @@ class RegistrationController extends Controller
         ]);
 
         $user->sendEmailVerificationNotification();
+
+        AdminNotification::notify(
+            'new_user',
+            'New Investor Registered',
+            "{$user->first_name} {$user->last_name} ({$user->email}) joined as an investor.",
+            ['user_id' => $user->id, 'email' => $user->email, 'role' => 'INVESTOR']
+        );
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -89,6 +97,14 @@ class RegistrationController extends Controller
         }
 
         $user->sendEmailVerificationNotification();
+
+        $userType = $isStudent ? 'student' : ($request->input('userType') ?? 'general user');
+        AdminNotification::notify(
+            'new_user',
+            'New User Registered',
+            "{$user->first_name} {$user->last_name} ({$user->email}) signed up as a {$userType}.",
+            ['user_id' => $user->id, 'email' => $user->email, 'role' => 'GENERAL_USER']
+        );
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -147,6 +163,13 @@ class RegistrationController extends Controller
         }
 
         $user->sendEmailVerificationNotification();
+
+        AdminNotification::notify(
+            'new_user',
+            'New User Registered',
+            "{$user->first_name} {$user->last_name} ({$user->email}) registered as both investor and general user.",
+            ['user_id' => $user->id, 'email' => $user->email, 'role' => 'BOTH']
+        );
 
         $token = $user->createToken('auth_token')->plainTextToken;
 

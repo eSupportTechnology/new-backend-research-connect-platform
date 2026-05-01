@@ -13,6 +13,9 @@ use App\Models\Research\ResearchLike;
 use App\Models\AuditLog;
 use App\Models\Cms\HubCard;
 use App\Models\Career;
+use App\Models\HireRequest;
+use App\Models\MembershipPayment;
+use App\Models\MembershipPricing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -491,6 +494,95 @@ class SuperAdminController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /** Admin: all membership upgrade payments */
+    public function getMembershipPayments(Request $request)
+    {
+        $query = MembershipPayment::with(['user:id,first_name,last_name,email'])
+            ->latest();
+
+        if ($request->filled('status'))    $query->where('status', $request->status);
+        if ($request->filled('to_tier'))   $query->where('to_tier', $request->to_tier);
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->whereHas('user', fn($q) =>
+                $q->where('email', 'like', "%{$s}%")
+                  ->orWhere('first_name', 'like', "%{$s}%")
+                  ->orWhere('last_name', 'like', "%{$s}%")
+            );
+        }
+
+        $payments = $query->paginate($request->get('per_page', 15));
+
+        $summary = [
+            'total'       => MembershipPayment::count(),
+            'paid'        => MembershipPayment::where('status', 'paid')->count(),
+            'pending'     => MembershipPayment::where('status', 'pending')->count(),
+            'revenue'     => MembershipPayment::where('status', 'paid')->sum('amount'),
+            'silver_upgrades' => MembershipPayment::where('to_tier', 'silver')->where('status', 'paid')->count(),
+            'gold_upgrades'   => MembershipPayment::where('to_tier', 'gold')->where('status', 'paid')->count(),
+        ];
+
+        return response()->json(['success' => true, 'data' => $payments, 'summary' => $summary]);
+    }
+
+    /** Admin: get membership pricing config */
+    public function getMembershipPricing()
+    {
+        return response()->json(['success' => true, 'data' => MembershipPricing::config()]);
+    }
+
+    /** Admin: update membership pricing */
+    public function updateMembershipPricing(Request $request)
+    {
+        $validated = $request->validate([
+            'bronze_to_silver' => 'required|numeric|min:0',
+            'silver_to_gold'   => 'required|numeric|min:0',
+            'bronze_to_gold'   => 'required|numeric|min:0',
+        ]);
+
+        $pricing = MembershipPricing::config();
+        $pricing->update($validated);
+
+        return response()->json(['success' => true, 'data' => $pricing, 'message' => 'Membership pricing updated']);
+    }
+
+    /** Admin: overview of all hire requests */
+    public function getHireRequests(Request $request)
+    {
+        $query = HireRequest::with([
+                'requester:id,first_name,last_name,email',
+                'provider:id,first_name,last_name,email',
+            ])->latest();
+
+        if ($request->filled('status')) $query->where('status', $request->status);
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('title', 'like', "%{$s}%")
+                  ->orWhereHas('requester', fn($u) =>
+                      $u->where('email', 'like', "%{$s}%")
+                        ->orWhere('first_name', 'like', "%{$s}%")
+                  )
+                  ->orWhereHas('provider', fn($u) =>
+                      $u->where('email', 'like', "%{$s}%")
+                        ->orWhere('first_name', 'like', "%{$s}%")
+                  );
+            });
+        }
+
+        $requests = $query->paginate($request->get('per_page', 15));
+
+        $summary = [
+            'total'     => HireRequest::count(),
+            'pending'   => HireRequest::where('status', 'pending')->count(),
+            'accepted'  => HireRequest::where('status', 'accepted')->count(),
+            'completed' => HireRequest::where('status', 'completed')->count(),
+            'declined'  => HireRequest::where('status', 'declined')->count(),
+        ];
+
+        return response()->json(['success' => true, 'data' => $requests, 'summary' => $summary]);
     }
 
     /**
