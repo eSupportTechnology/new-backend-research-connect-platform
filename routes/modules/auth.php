@@ -28,7 +28,7 @@ Route::post('/reset-password',  [PasswordResetController::class, 'resetPassword'
 
 // Email verification
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-    ->middleware(['auth:sanctum', 'signed'])
+    ->middleware(['signed'])
     ->name('verification.verify');
 Route::post('/email/resend', [EmailVerificationController::class, 'resend'])
     ->middleware('auth:sanctum');

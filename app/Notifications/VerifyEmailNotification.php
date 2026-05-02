@@ -40,11 +40,10 @@ class VerifyEmailNotification extends Notification
             ]);
 
         return (new MailMessage)
-            ->subject('Verify Your Email Address')
-            ->greeting('Hello ' . $notifiable->first_name . '!')
-            ->line('Please click the button below to verify your email address.')
-            ->action('Verify Email', $frontendUrl)
-            ->line('This link will expire in 60 minutes.')
-            ->line('If you did not create an account, no further action is required.');
+            ->subject('Verify Your Email — Innlaunch')
+            ->view('emails.verify-email', [
+                'url'       => $frontendUrl,
+                'firstName' => $notifiable->first_name,
+            ]);
     }
 }

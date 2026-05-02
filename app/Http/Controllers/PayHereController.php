@@ -87,7 +87,7 @@ class PayHereController extends Controller
                         AdminNotification::notify(
                             'new_order',
                             'New Order Paid',
-                            "{$buyerName} paid LKR " . number_format($order->amount, 2) . " for "{$itemTitle}".",
+                            "{$buyerName} paid LKR " . number_format($order->amount, 2) . " for \"{$itemTitle}\".",
                             ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $order->amount]
                         );
 
