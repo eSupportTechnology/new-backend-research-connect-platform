@@ -14,7 +14,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role' => RoleMiddleware::class,
+            'role'             => RoleMiddleware::class,
+            'student.verified' => \App\Http\Middleware\EnsureStudentVerified::class,
+        ]);
+
+        // Block write operations for unverified school students across all API routes
+        $middleware->api(append: [
+            \App\Http\Middleware\EnsureStudentVerified::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

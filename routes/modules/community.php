@@ -13,6 +13,7 @@ Route::prefix('community')->group(function () {
         Route::post('/posts', [CommunityController::class, 'store']);
         Route::post('/posts/{id}/like', [CommunityController::class, 'toggleLike']);
         Route::post('/posts/{id}/comment', [CommunityController::class, 'storeComment']);
+        Route::delete('/posts/{postId}/comments/{commentId}', [CommunityController::class, 'destroyComment']);
     });
 });
 

@@ -219,6 +219,30 @@ class CommunityController extends Controller
         }
     }
 
+    /**
+     * Delete a comment — allowed by comment author OR post owner
+     */
+    public function destroyComment($postId, $commentId)
+    {
+        $comment = CommunityComment::where('id', $commentId)->where('post_id', $postId)->first();
+
+        if (!$comment) {
+            return response()->json(['success' => false, 'message' => 'Comment not found'], 404);
+        }
+
+        $userId  = auth()->id();
+        $post    = CommunityPost::find($postId);
+        $isOwner = $post && $post->user_id === $userId;
+
+        if ($comment->user_id !== $userId && !$isOwner) {
+            return response()->json(['success' => false, 'message' => 'Not authorized to delete this comment'], 403);
+        }
+
+        $comment->delete();
+
+        return response()->json(['success' => true, 'message' => 'Comment deleted successfully']);
+    }
+
     // ── Admin: list all posts ────────────────────────────────────────────────
     public function adminIndex(Request $request)
     {

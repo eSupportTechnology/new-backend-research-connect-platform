@@ -788,7 +788,7 @@ class SellingItemController extends Controller
             AdminNotification::notify(
                 'new_order',
                 'New COD Order Placed',
-                "{$buyer->first_name} {$buyer->last_name} placed a Cash on Delivery order for "{$item->title}" — LKR " . number_format($totalAmount, 2) . ".",
+                "{$buyer->first_name} {$buyer->last_name} placed a Cash on Delivery order for \"{$item->title}\" — LKR " . number_format($totalAmount, 2) . ".",
                 ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount]
             );
 

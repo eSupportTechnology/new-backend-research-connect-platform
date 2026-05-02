@@ -71,10 +71,11 @@ class HireRequestController extends Controller
         }
 
         $requester = Auth::user();
+        $providerName = $provider ? "{$provider->first_name} {$provider->last_name}" : 'Unknown';
         AdminNotification::notify(
             'new_hire_request',
             'New Hire Request Submitted',
-            "{$requester->first_name} {$requester->last_name} sent a hire request to {$provider?->first_name} {$provider?->last_name}: "{$hireRequest->title}".",
+            "{$requester->first_name} {$requester->last_name} sent a hire request to {$providerName}: \"{$hireRequest->title}\".",
             ['hire_request_id' => $hireRequest->id, 'requester_email' => $requester->email]
         );
 

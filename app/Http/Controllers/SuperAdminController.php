@@ -16,8 +16,10 @@ use App\Models\Career;
 use App\Models\HireRequest;
 use App\Models\MembershipPayment;
 use App\Models\MembershipPricing;
+use App\Models\RegisterUsers\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class SuperAdminController extends Controller
@@ -583,6 +585,129 @@ class SuperAdminController extends Controller
         ];
 
         return response()->json(['success' => true, 'data' => $requests, 'summary' => $summary]);
+    }
+
+    /** List all students with birth certificate verification status */
+    public function getStudentVerifications(Request $request)
+    {
+        $status = $request->query('status', 'all');
+        $search = $request->query('search', '');
+
+        $query = Student::with([
+                'user' => fn($q) => $q->select('id', 'first_name', 'last_name', 'email'),
+                'parent',
+            ])
+            ->when($status !== 'all', fn($q) => $q->where('verification_status', $status))
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('user', fn($u) =>
+                    $u->where('first_name', 'like', "%{$search}%")
+                      ->orWhere('last_name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                )->orWhere('school_name', 'like', "%{$search}%");
+            })
+            ->latest()
+            ->paginate($request->get('per_page', 15));
+
+        $query->getCollection()->transform(function ($student) {
+            $user = $student->user;
+            return [
+                'id'                      => $student->id,
+                'user_id'                 => $student->user_id,
+                'student_name'            => $user
+                    ? trim($user->first_name . ' ' . $user->last_name)
+                    : '—',
+                'email'                   => $user?->email ?? '—',
+                'school_name'             => $student->school_name,
+                'grade_level'             => $student->grade_level,
+                'student_id'              => $student->student_id,
+                'birth_certificate_url'   => $student->birth_certificate_path
+                    ? url("/api/super-admin/student-verifications/{$student->id}/certificate")
+                    : null,
+                'birth_certificate_mime'  => $student->birth_certificate_path && Storage::disk('public')->exists($student->birth_certificate_path)
+                    ? Storage::disk('public')->mimeType($student->birth_certificate_path)
+                    : null,
+                'verification_status'     => $student->verification_status,
+                'verification_notes'      => $student->verification_notes,
+                'registered_at'           => $student->created_at->toDateTimeString(),
+            ];
+        });
+
+        $summary = [
+            'total'    => Student::count(),
+            'pending'  => Student::where('verification_status', 'pending')->count(),
+            'approved' => Student::where('verification_status', 'approved')->count(),
+            'rejected' => Student::where('verification_status', 'rejected')->count(),
+        ];
+
+        return response()->json(['success' => true, 'data' => $query, 'summary' => $summary]);
+    }
+
+    /** Stream the birth certificate file to the browser */
+    public function serveCertificate($id)
+    {
+        $student = Student::findOrFail($id);
+
+        if (!$student->birth_certificate_path) {
+            abort(404, 'No certificate uploaded.');
+        }
+
+        if (!Storage::disk('public')->exists($student->birth_certificate_path)) {
+            abort(404, 'Certificate file not found.');
+        }
+
+        $file     = Storage::disk('public')->get($student->birth_certificate_path);
+        $mime     = Storage::disk('public')->mimeType($student->birth_certificate_path);
+        $filename = basename($student->birth_certificate_path);
+
+        return response($file, 200)
+            ->header('Content-Type', $mime)
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"')
+            ->header('Cache-Control', 'private, max-age=3600');
+    }
+
+    /** Delete a student verification record (and associated birth certificate file) */
+    public function deleteStudentVerification($id)
+    {
+        $student = Student::findOrFail($id);
+
+        if ($student->birth_certificate_path) {
+            Storage::disk('public')->delete($student->birth_certificate_path);
+        }
+
+        $student->delete();
+
+        return response()->json(['success' => true, 'message' => 'Student record deleted.']);
+    }
+
+    /** Approve or reject a student's birth certificate */
+    public function updateStudentVerification(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'status' => 'required|in:approved,rejected,pending',
+            'notes'  => 'nullable|string|max:500',
+        ]);
+
+        $student = Student::findOrFail($id);
+        $student->update([
+            'verification_status' => $validated['status'],
+            'verification_notes'  => $validated['notes'] ?? null,
+        ]);
+
+        // Send in-app notification to the student's user account
+        if (in_array($validated['status'], ['approved', 'rejected'])) {
+            $isApproved = $validated['status'] === 'approved';
+            \App\Models\UserNotification::create([
+                'user_id' => $student->user_id,
+                'type'    => 'student_verification',
+                'title'   => $isApproved ? 'Birth Certificate Approved ✓' : 'Birth Certificate Rejected',
+                'message' => $isApproved
+                    ? 'Your birth certificate has been verified. You now have full access to all platform features.'
+                    : 'Your birth certificate was rejected' . ($validated['notes'] ? ': ' . $validated['notes'] : '.') . ' Please contact support for assistance.',
+                'data'    => ['status' => $validated['status']],
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Verification status updated.']);
     }
 
     /**

@@ -49,25 +49,33 @@ class AuthController extends Controller
 
         $user->tokens()->delete();
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token   = $user->createToken('auth_token')->plainTextToken;
+        $student = $user->student;
+
+        $userData = [
+            'id'              => $user->id,
+            'first_name'      => $user->first_name,
+            'last_name'       => $user->last_name,
+            'email'           => $user->email,
+            'role'            => $user->role,
+            'user_type'       => $user->user_type,
+            'status'          => $user->status,
+            'email_verified_at' => $user->email_verified_at,
+            'membership_tier' => $user->membership_tier ?? 'bronze',
+            'tier_badge'      => $user->tier_badge,
+        ];
+
+        // Only attach student verification fields if this user has a student record
+        if ($student) {
+            $userData['student_verification_status'] = $student->verification_status;
+            $userData['student_verification_notes']  = $student->verification_notes;
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
-            'token' => $token,
-            'data' => [
-                'user' => [
-                    'id'              => $user->id,
-                    'first_name'      => $user->first_name,
-                    'last_name'       => $user->last_name,
-                    'email'           => $user->email,
-                    'role'            => $user->role,
-                    'user_type'       => $user->user_type,
-                    'status'          => $user->status,
-                    'membership_tier' => $user->membership_tier ?? 'bronze',
-                    'tier_badge'      => $user->tier_badge,
-                ],
-            ]
+            'token'   => $token,
+            'data'    => ['user' => $userData],
         ], 200);
     }
 

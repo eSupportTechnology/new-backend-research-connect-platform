@@ -215,6 +215,11 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->notify(new \App\Notifications\VerifyEmailNotification);
     }
 
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new \App\Notifications\ResetPasswordNotification($token));
+    }
+
     public function canAccess(string $requiredTier): bool
     {
         $order = ['bronze' => 1, 'silver' => 2, 'gold' => 3];

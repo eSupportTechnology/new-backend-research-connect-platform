@@ -403,8 +403,7 @@ class InvestorZoneController extends Controller
 
         $authorName = $profile?->name ?? $user?->name ?? 'Unknown';
         $authorEmail = $profile?->email ?? $user?->email ?? null;
-        $authorAvatar = $profile?->profile_image_url        // uses S3 accessor
-            ?? 'https://i.pravatar.cc/150?img=1';
+        $authorAvatar = $profile?->profile_image_url ?? null;
 
         $base = [
             'id' => $post->id,

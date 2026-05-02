@@ -15,11 +15,13 @@ class Student extends Model
     public $incrementing = false;
 
     protected $fillable = [
-
         'user_id',
         'school_name',
         'grade_level',
         'student_id',
+        'birth_certificate_path',
+        'verification_status',
+        'verification_notes',
     ];
 
 

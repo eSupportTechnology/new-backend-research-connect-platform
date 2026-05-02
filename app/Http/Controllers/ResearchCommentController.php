@@ -29,6 +29,7 @@ class ResearchCommentController extends Controller
             $comments->getCollection()->transform(function ($comment) {
                 return [
                     'id' => $comment->id,
+                    'user_id' => $comment->user_id,
                     'text' => $comment->text,
                     'rating' => $comment->rating,
                     'likes' => $comment->likes_count,
@@ -184,34 +185,34 @@ class ResearchCommentController extends Controller
     /**
      * Delete a comment
      */
+    /**
+     * Delete a comment — allowed by comment author OR research owner
+     */
     public function destroy($researchId, $commentId)
     {
         try {
             $comment = ResearchComment::where('id', $commentId)
                 ->where('research_id', $researchId)
-                ->where('user_id', auth()->id())
                 ->first();
 
             if (!$comment) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Comment not found or you do not have permission to delete it',
-                ], 404);
+                return response()->json(['success' => false, 'message' => 'Comment not found'], 404);
+            }
+
+            $userId   = auth()->id();
+            $research = \App\Models\Research\Research::find($researchId);
+            $isOwner  = $research && $research->user_id === $userId;
+
+            if ($comment->user_id !== $userId && !$isOwner) {
+                return response()->json(['success' => false, 'message' => 'Not authorized to delete this comment'], 403);
             }
 
             $comment->delete();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Comment deleted successfully',
-            ], 200);
+            return response()->json(['success' => true, 'message' => 'Comment deleted successfully'], 200);
 
         } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete comment',
-                'error' => $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to delete comment', 'error' => $e->getMessage()], 500);
         }
     }
 

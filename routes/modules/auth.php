@@ -11,6 +11,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ShippingAddressController;
 use App\Http\Controllers\SocialAuthController;
+use App\Http\Controllers\SavedItemController;
+use App\Http\Controllers\UserNotificationController;
 use Illuminate\Support\Facades\Route;
 
 //Register
@@ -28,7 +30,7 @@ Route::post('/reset-password',  [PasswordResetController::class, 'resetPassword'
 
 // Email verification
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-    ->middleware(['auth:sanctum', 'signed'])
+    ->middleware(['signed'])
     ->name('verification.verify');
 Route::post('/email/resend', [EmailVerificationController::class, 'resend'])
     ->middleware('auth:sanctum');
@@ -42,6 +44,16 @@ Route::get('/auth/facebook',          [SocialAuthController::class, 'redirectToF
 Route::get('/auth/facebook/callback', [SocialAuthController::class, 'handleFacebookCallback']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Saved items (innovations & research)
+    Route::get('/saved-items',         [SavedItemController::class, 'index']);
+    Route::post('/saved-items/toggle', [SavedItemController::class, 'toggle']);
+    Route::get('/saved-items/check',   [SavedItemController::class, 'check']);
+
+    // User notifications
+    Route::get('/user-notifications',             [UserNotificationController::class, 'index']);
+    Route::put('/user-notifications/read-all',    [UserNotificationController::class, 'markAllRead']);
+    Route::put('/user-notifications/{id}/read',   [UserNotificationController::class, 'markRead']);
 });
 
 //Portfolio
