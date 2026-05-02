@@ -117,7 +117,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Check follow status
     Route::get('/users/{user}/follow-status', [FollowerController::class, 'checkFollowStatus']);
-    Route::get('/users/{user}/follow-stats', [FollowerController::class, 'stats']);
+    Route::get('/users/{user}/follow-stats',  [FollowerController::class, 'stats']);
+
+    // User average rating (from comments on their posts)
+    Route::get('/users/{user}/average-rating', [FollowerController::class, 'averageRating']);
 
     // Suggestions
     Route::get('/follow-suggestions', [FollowerController::class, 'suggestions']);

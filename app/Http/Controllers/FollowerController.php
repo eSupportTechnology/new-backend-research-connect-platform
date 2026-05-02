@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Innovation\Follower;
+use App\Models\Innovation\InnovationComment;
+use App\Models\Research\ResearchComment;
 use App\Models\RegisterUsers\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -373,6 +375,42 @@ class FollowerController extends Controller
             ], 500);
         }
     }
+    /**
+     * Average rating across all the user's innovations and research
+     */
+    public function averageRating($userId)
+    {
+        $user = User::find($userId);
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'User not found'], 404);
+        }
+
+        // Innovation comment ratings
+        $innovationStats = InnovationComment::whereHas('innovation', fn($q) => $q->where('user_id', $userId))
+            ->selectRaw('AVG(rating) as avg, COUNT(*) as total')
+            ->first();
+
+        // Research comment ratings
+        $researchStats = ResearchComment::whereHas('research', fn($q) => $q->where('user_id', $userId))
+            ->selectRaw('AVG(rating) as avg, COUNT(*) as total')
+            ->first();
+
+        $totalCount = ($innovationStats->total ?? 0) + ($researchStats->total ?? 0);
+
+        $average = $totalCount > 0
+            ? (($innovationStats->avg ?? 0) * ($innovationStats->total ?? 0)
+              + ($researchStats->avg ?? 0) * ($researchStats->total ?? 0)) / $totalCount
+            : 0;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'average' => round($average, 1),
+                'total'   => $totalCount,
+            ],
+        ]);
+    }
+
     /**
      * Remove a follower
      */

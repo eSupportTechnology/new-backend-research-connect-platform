@@ -693,6 +693,20 @@ class SuperAdminController extends Controller
             'verification_notes'  => $validated['notes'] ?? null,
         ]);
 
+        // Send in-app notification to the student's user account
+        if (in_array($validated['status'], ['approved', 'rejected'])) {
+            $isApproved = $validated['status'] === 'approved';
+            \App\Models\UserNotification::create([
+                'user_id' => $student->user_id,
+                'type'    => 'student_verification',
+                'title'   => $isApproved ? 'Birth Certificate Approved ✓' : 'Birth Certificate Rejected',
+                'message' => $isApproved
+                    ? 'Your birth certificate has been verified. You now have full access to all platform features.'
+                    : 'Your birth certificate was rejected' . ($validated['notes'] ? ': ' . $validated['notes'] : '.') . ' Please contact support for assistance.',
+                'data'    => ['status' => $validated['status']],
+            ]);
+        }
+
         return response()->json(['success' => true, 'message' => 'Verification status updated.']);
     }
 

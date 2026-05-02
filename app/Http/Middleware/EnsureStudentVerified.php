@@ -21,11 +21,11 @@ class EnsureStudentVerified
         if ($user) {
             $student = $user->student;
 
-            if ($student && $student->verification_status !== 'approved') {
+            if ($student && $student->verification_status === 'rejected') {
                 return response()->json([
                     'success'             => false,
-                    'message'             => 'Your student verification is ' . $student->verification_status . '. You cannot perform this action until your birth certificate is approved.',
-                    'verification_status' => $student->verification_status,
+                    'message'             => 'Your birth certificate was rejected. You cannot perform this action.',
+                    'verification_status' => 'rejected',
                 ], 403);
             }
         }
