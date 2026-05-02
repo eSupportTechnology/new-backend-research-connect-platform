@@ -54,6 +54,10 @@ Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
     // Hire Request Overview
     Route::get('/hire-requests',               [SuperAdminController::class, 'getHireRequests']);
 
+    // Student Verification
+    Route::get('/student-verifications',              [SuperAdminController::class, 'getStudentVerifications']);
+    Route::put('/student-verifications/{id}',         [SuperAdminController::class, 'updateStudentVerification']);
+
     // Admin Notifications
     Route::get('/notifications',               [AdminNotificationController::class, 'index']);
     Route::put('/notifications/read-all',      [AdminNotificationController::class, 'markAllRead']);

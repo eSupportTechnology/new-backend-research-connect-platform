@@ -16,8 +16,10 @@ use App\Models\Career;
 use App\Models\HireRequest;
 use App\Models\MembershipPayment;
 use App\Models\MembershipPricing;
+use App\Models\RegisterUsers\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class SuperAdminController extends Controller
@@ -583,6 +585,71 @@ class SuperAdminController extends Controller
         ];
 
         return response()->json(['success' => true, 'data' => $requests, 'summary' => $summary]);
+    }
+
+    /** List all students with birth certificate verification status */
+    public function getStudentVerifications(Request $request)
+    {
+        $status = $request->query('status', 'all');
+        $search = $request->query('search', '');
+
+        $query = Student::with(['user:id,first_name,last_name,email', 'parent'])
+            ->when($status !== 'all', fn($q) => $q->where('verification_status', $status))
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('user', fn($u) =>
+                    $u->where('first_name', 'like', "%{$search}%")
+                      ->orWhere('last_name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                )->orWhere('school_name', 'like', "%{$search}%");
+            })
+            ->latest()
+            ->paginate($request->get('per_page', 15));
+
+        $query->getCollection()->transform(function ($student) {
+            return [
+                'id'                      => $student->id,
+                'user_id'                 => $student->user_id,
+                'student_name'            => $student->user
+                    ? $student->user->first_name . ' ' . $student->user->last_name
+                    : 'N/A',
+                'email'                   => $student->user?->email,
+                'school_name'             => $student->school_name,
+                'grade_level'             => $student->grade_level,
+                'student_id'              => $student->student_id,
+                'birth_certificate_url'   => $student->birth_certificate_path
+                    ? asset(Storage::url($student->birth_certificate_path))
+                    : null,
+                'verification_status'     => $student->verification_status,
+                'verification_notes'      => $student->verification_notes,
+                'registered_at'           => $student->created_at->toDateTimeString(),
+            ];
+        });
+
+        $summary = [
+            'total'    => Student::count(),
+            'pending'  => Student::where('verification_status', 'pending')->count(),
+            'approved' => Student::where('verification_status', 'approved')->count(),
+            'rejected' => Student::where('verification_status', 'rejected')->count(),
+        ];
+
+        return response()->json(['success' => true, 'data' => $query, 'summary' => $summary]);
+    }
+
+    /** Approve or reject a student's birth certificate */
+    public function updateStudentVerification(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'status' => 'required|in:approved,rejected,pending',
+            'notes'  => 'nullable|string|max:500',
+        ]);
+
+        $student = Student::findOrFail($id);
+        $student->update([
+            'verification_status' => $validated['status'],
+            'verification_notes'  => $validated['notes'] ?? null,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Verification status updated.']);
     }
 
     /**

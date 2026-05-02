@@ -57,16 +57,20 @@ class RegistrationController extends Controller
 
     public function registerGeneralUser(Request $request)
     {
+        $isStudent = filter_var($request->input('isSchoolStudent', false), FILTER_VALIDATE_BOOLEAN);
+
         $validated = $request->validate([
             'generalUserDetails.firstName' => 'required|string|max:255',
             'generalUserDetails.lastName' => 'required|string|max:255',
             'generalUserDetails.email' => 'required|email|unique:users,email',
             'generalUserDetails.password' => 'required|string|min:8',
             'generalUserDetails.phone' => 'required|string',
-            'isSchoolStudent' => 'required|boolean'
+            'isSchoolStudent' => 'required',
+            'birth_certificate' => $isStudent
+                ? 'required|file|mimes:jpeg,jpg,png,pdf|max:5120'
+                : 'nullable',
         ]);
 
-        $isStudent = $request->input('isSchoolStudent', false);
         $user = User::create([
             'first_name'      => $validated['generalUserDetails']['firstName'],
             'last_name'       => $validated['generalUserDetails']['lastName'],
@@ -78,12 +82,17 @@ class RegistrationController extends Controller
         ]);
 
         // School student
-        if ($request->input('isSchoolStudent')) {
+        if ($isStudent) {
+            $birthCertPath = $request->file('birth_certificate')
+                ->store('birth_certificates', 'public');
+
             $student = Student::create([
                 'user_id' => $user->id,
                 'school_name' => $request->input('studentDetails.schoolName'),
                 'grade_level' => $request->input('studentDetails.gradeLevel'),
                 'student_id' => $request->input('studentDetails.studentId'),
+                'birth_certificate_path' => $birthCertPath,
+                'verification_status' => 'pending',
             ]);
 
             ParentModel::create([
@@ -116,6 +125,8 @@ class RegistrationController extends Controller
     }
     public function registerBoth(Request $request)
     {
+        $isStudent = filter_var($request->input('isSchoolStudent', false), FILTER_VALIDATE_BOOLEAN);
+
         $validated = $request->validate([
             'coreDetails.firstName' => 'required|string|max:255',
             'coreDetails.lastName' => 'required|string|max:255',
@@ -123,10 +134,12 @@ class RegistrationController extends Controller
             'coreDetails.password' => 'required|string|min:8',
             'investorDetails.phone' => 'required|string',
             'investorDetails.investmentPreferences' => 'required|string',
-            'isSchoolStudent' => 'required|boolean'
+            'isSchoolStudent' => 'required',
+            'birth_certificate' => $isStudent
+                ? 'required|file|mimes:jpeg,jpg,png,pdf|max:5120'
+                : 'nullable',
         ]);
 
-        $isStudent = $request->input('isSchoolStudent', false);
         $user = User::create([
             'first_name'      => $validated['coreDetails']['firstName'],
             'last_name'       => $validated['coreDetails']['lastName'],
@@ -144,12 +157,17 @@ class RegistrationController extends Controller
             'investment_preferences' => $validated['investorDetails']['investmentPreferences']
         ]);
 
-        if ($request->input('isSchoolStudent')) {
+        if ($isStudent) {
+            $birthCertPath = $request->file('birth_certificate')
+                ->store('birth_certificates', 'public');
+
             $student = Student::create([
                 'user_id' => $user->id,
                 'school_name' => $request->input('studentDetails.schoolName'),
                 'grade_level' => $request->input('studentDetails.gradeLevel'),
                 'student_id' => $request->input('studentDetails.studentId'),
+                'birth_certificate_path' => $birthCertPath,
+                'verification_status' => 'pending',
             ]);
 
             ParentModel::create([
