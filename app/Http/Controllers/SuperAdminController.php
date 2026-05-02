@@ -593,7 +593,10 @@ class SuperAdminController extends Controller
         $status = $request->query('status', 'all');
         $search = $request->query('search', '');
 
-        $query = Student::with(['user:id,first_name,last_name,email', 'parent'])
+        $query = Student::with([
+                'user' => fn($q) => $q->select('id', 'first_name', 'last_name', 'email'),
+                'parent',
+            ])
             ->when($status !== 'all', fn($q) => $q->where('verification_status', $status))
             ->when($search, function ($q) use ($search) {
                 $q->whereHas('user', fn($u) =>
@@ -606,18 +609,22 @@ class SuperAdminController extends Controller
             ->paginate($request->get('per_page', 15));
 
         $query->getCollection()->transform(function ($student) {
+            $user = $student->user;
             return [
                 'id'                      => $student->id,
                 'user_id'                 => $student->user_id,
-                'student_name'            => $student->user
-                    ? $student->user->first_name . ' ' . $student->user->last_name
-                    : 'N/A',
-                'email'                   => $student->user?->email,
+                'student_name'            => $user
+                    ? trim($user->first_name . ' ' . $user->last_name)
+                    : '—',
+                'email'                   => $user?->email ?? '—',
                 'school_name'             => $student->school_name,
                 'grade_level'             => $student->grade_level,
                 'student_id'              => $student->student_id,
                 'birth_certificate_url'   => $student->birth_certificate_path
-                    ? asset(Storage::url($student->birth_certificate_path))
+                    ? url("/api/super-admin/student-verifications/{$student->id}/certificate")
+                    : null,
+                'birth_certificate_mime'  => $student->birth_certificate_path && Storage::disk('public')->exists($student->birth_certificate_path)
+                    ? Storage::disk('public')->mimeType($student->birth_certificate_path)
                     : null,
                 'verification_status'     => $student->verification_status,
                 'verification_notes'      => $student->verification_notes,
@@ -633,6 +640,43 @@ class SuperAdminController extends Controller
         ];
 
         return response()->json(['success' => true, 'data' => $query, 'summary' => $summary]);
+    }
+
+    /** Stream the birth certificate file to the browser */
+    public function serveCertificate($id)
+    {
+        $student = Student::findOrFail($id);
+
+        if (!$student->birth_certificate_path) {
+            abort(404, 'No certificate uploaded.');
+        }
+
+        if (!Storage::disk('public')->exists($student->birth_certificate_path)) {
+            abort(404, 'Certificate file not found.');
+        }
+
+        $file     = Storage::disk('public')->get($student->birth_certificate_path);
+        $mime     = Storage::disk('public')->mimeType($student->birth_certificate_path);
+        $filename = basename($student->birth_certificate_path);
+
+        return response($file, 200)
+            ->header('Content-Type', $mime)
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"')
+            ->header('Cache-Control', 'private, max-age=3600');
+    }
+
+    /** Delete a student verification record (and associated birth certificate file) */
+    public function deleteStudentVerification($id)
+    {
+        $student = Student::findOrFail($id);
+
+        if ($student->birth_certificate_path) {
+            Storage::disk('public')->delete($student->birth_certificate_path);
+        }
+
+        $student->delete();
+
+        return response()->json(['success' => true, 'message' => 'Student record deleted.']);
     }
 
     /** Approve or reject a student's birth certificate */

@@ -51,21 +51,26 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $student = $user->student;
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
             'token' => $token,
             'data' => [
                 'user' => [
-                    'id'              => $user->id,
-                    'first_name'      => $user->first_name,
-                    'last_name'       => $user->last_name,
-                    'email'           => $user->email,
-                    'role'            => $user->role,
-                    'user_type'       => $user->user_type,
-                    'status'          => $user->status,
-                    'membership_tier' => $user->membership_tier ?? 'bronze',
-                    'tier_badge'      => $user->tier_badge,
+                    'id'                          => $user->id,
+                    'first_name'                  => $user->first_name,
+                    'last_name'                   => $user->last_name,
+                    'email'                       => $user->email,
+                    'role'                        => $user->role,
+                    'user_type'                   => $user->user_type,
+                    'status'                      => $user->status,
+                    'email_verified_at'           => $user->email_verified_at,
+                    'membership_tier'             => $user->membership_tier ?? 'bronze',
+                    'tier_badge'                  => $user->tier_badge,
+                    'student_verification_status' => $student?->verification_status,
+                    'student_verification_notes'  => $student?->verification_notes,
                 ],
             ]
         ], 200);

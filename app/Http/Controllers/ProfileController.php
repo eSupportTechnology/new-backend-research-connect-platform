@@ -69,6 +69,12 @@ class ProfileController extends Controller
         $userData['membership_tier']= $user->membership_tier ?? 'bronze';
         $userData['tier_badge']     = $user->tier_badge;
 
+        $student = $user->student;
+        if ($student) {
+            $userData['student_verification_status'] = $student->verification_status;
+            $userData['student_verification_notes']  = $student->verification_notes;
+        }
+
         return response()->json([
             'success' => true,
             'data'    => [

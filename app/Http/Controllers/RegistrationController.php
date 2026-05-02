@@ -117,9 +117,15 @@ class RegistrationController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $userArray = $user->toArray();
+        if ($isStudent) {
+            $userArray['student_verification_status'] = 'pending';
+            $userArray['student_verification_notes']  = null;
+        }
+
         return response()->json([
-            'user' => $user,
-            'token' => $token,
+            'user'    => $userArray,
+            'token'   => $token,
             'message' => 'Registration successful. Please check your email to verify your account.'
         ]);
     }
@@ -191,9 +197,15 @@ class RegistrationController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $userArray = $user->toArray();
+        if ($isStudent) {
+            $userArray['student_verification_status'] = 'pending';
+            $userArray['student_verification_notes']  = null;
+        }
+
         return response()->json([
-            'user' => $user,
-            'token' => $token,
+            'user'    => $userArray,
+            'token'   => $token,
             'message' => 'Registration successful. Please check your email to verify your account.'
         ]);
     }
