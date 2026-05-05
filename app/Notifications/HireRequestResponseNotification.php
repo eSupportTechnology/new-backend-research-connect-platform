@@ -22,7 +22,7 @@ class HireRequestResponseNotification extends Notification
     {
         $status      = $this->hireRequest->status;
         $providerName = $this->hireRequest->provider->first_name . ' ' . $this->hireRequest->provider->last_name;
-        $inboxUrl    = env('FRONTEND_URL', 'http://localhost:5173') . '/profile/hire-requests';
+        $inboxUrl    = env('FRONTEND_URL') . '/profile/hire-requests';
 
         $isAccepted = $status === 'accepted';
 
