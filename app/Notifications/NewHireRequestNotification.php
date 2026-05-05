@@ -20,7 +20,7 @@ class NewHireRequestNotification extends Notification
 
     public function toMail($notifiable): MailMessage
     {
-        $inboxUrl = env('FRONTEND_URL', 'http://localhost:5173') . '/profile/hire-requests';
+        $inboxUrl = env('FRONTEND_URL') . '/profile/hire-requests';
 
         return (new MailMessage)
             ->subject('New Hire Request on Research Connect')

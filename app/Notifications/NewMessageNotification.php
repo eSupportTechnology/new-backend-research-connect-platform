@@ -20,7 +20,7 @@ class NewMessageNotification extends Notification
 
     public function toMail($notifiable): MailMessage
     {
-        $profileUrl = env('FRONTEND_URL', 'http://localhost:5173') . '/profile/inbox';
+        $profileUrl = env('FRONTEND_URL') . '/profile/inbox';
 
         return (new MailMessage)
             ->subject('You have a new message on Research Connect')

@@ -107,9 +107,9 @@ class MembershipController extends Controller
             'success' => true,
             'data'    => [
                 'merchant_id'  => $merchantId,
-                'return_url'   => env('APP_FRONTEND_URL', 'http://localhost:5173') . '/membership?status=success',
-                'cancel_url'   => env('APP_FRONTEND_URL', 'http://localhost:5173') . '/membership?status=cancelled',
-                'notify_url'   => env('APP_URL', 'http://localhost:8000') . '/api/payhere/notify',
+                'return_url'   => env('FRONTEND_URL') . '/membership?status=success',
+                'cancel_url'   => env('FRONTEND_URL') . '/membership?status=cancelled',
+                'notify_url'   => env('APP_URL') . '/api/payhere/notify',
                 'order_id'     => $orderId,
                 'items'        => ucfirst($current) . ' → ' . ucfirst($targetTier) . ' Membership Upgrade',
                 'currency'     => 'LKR',

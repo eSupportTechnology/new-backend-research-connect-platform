@@ -80,13 +80,13 @@ class SocialAuthController extends Controller
             'membership_tier' => $user->membership_tier ?? 'bronze',
         ]));
 
-        $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $frontendUrl = rtrim(env('FRONTEND_URL'), '/');
         return redirect("{$frontendUrl}/auth/callback?token={$token}&user={$userData}");
     }
 
     private function oauthError(string $message)
     {
-        $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $frontendUrl = rtrim(env('FRONTEND_URL'), '/');
         return redirect("{$frontendUrl}/login?error=" . urlencode($message));
     }
 }

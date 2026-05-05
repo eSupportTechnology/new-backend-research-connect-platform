@@ -170,8 +170,8 @@ class UserAdvertisementController extends Controller
                 'delivery_city' => 'Colombo',
                 'delivery_country' => 'Sri Lanka',
                 'notify_url' => url('/api/advertisements/payhere/notify'),
-                'return_url' => env('FRONTEND_URL', 'http://localhost:5173') . '/profile/ads?status=success',
-                'cancel_url' => env('FRONTEND_URL', 'http://localhost:5173') . '/profile/ads?status=cancel',
+                'return_url' => env('FRONTEND_URL') . '/profile/ads?status=success',
+                'cancel_url' => env('FRONTEND_URL') . '/profile/ads?status=cancel',
             ],
         ]);
     }
