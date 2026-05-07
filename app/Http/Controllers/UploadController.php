@@ -335,24 +335,19 @@ class UploadController extends Controller
      */
     public function getResearches(Request $request)
     {
-        $query = Research::with('userProfile')->with('researchViews');
+        $query = Research::with(['userProfile', 'comments'])->withCount(['likes', 'dislikes']);
 
+        // Public endpoint: always show approved papers only.
+        // Admin can pass ?status=pending etc. via the admin routes.
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        } else {
+            $query->approved();
+        }
 
         // Apply filters
         if ($request->has('category')) {
             $query->category($request->category);
-        }
-
-        // ❌ REMOVE approved-only logic
-        // if ($request->has('status')) {
-        //     $query->where('status', $request->status);
-        // } else {
-        //     $query->approved();
-        // }
-
-        // ✅ OPTIONAL: if status is provided, filter it
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
         }
 
         if ($request->has('search')) {
