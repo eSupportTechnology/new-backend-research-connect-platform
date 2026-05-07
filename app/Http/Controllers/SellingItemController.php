@@ -871,6 +871,30 @@ class SellingItemController extends Controller
     }
 
     /**
+     * Buyer confirms they received the physical product — sets delivery_status to delivered.
+     */
+    public function markAsReceived($id)
+    {
+        try {
+            $order = Order::where('buyer_id', auth()->id())->findOrFail($id);
+
+            if (!in_array($order->delivery_status, ['dispatched', 'in_transit'])) {
+                return response()->json(['success' => false, 'message' => 'Order is not in a deliverable state'], 422);
+            }
+
+            $order->update([
+                'delivery_status' => 'delivered',
+                'delivered_at'    => now(),
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Order marked as received', 'data' => $order]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Failed to update order'], 500);
+        }
+    }
+
+    /**
      * Get orders bought by current user.
      * Exposes digital_file_url only for confirmed (paid / cod_pending) orders.
      */
