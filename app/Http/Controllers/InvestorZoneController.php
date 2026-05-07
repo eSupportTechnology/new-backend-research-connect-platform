@@ -80,7 +80,7 @@ class InvestorZoneController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'media' => 'required|file|mimes:png,jpg,jpeg,mp4|max:10240',
+            'media' => 'required|file|mimes:png,jpg,jpeg,mp4|max:5242880', // 5GB — real limit enforced by payment system + server config
             'title' => 'required|string|max:100',
             'description' => 'required|string|min:20|max:1000',
             'keyHighlights' => 'required|string|min:20|max:1000',
