@@ -100,18 +100,22 @@ class CommunityController extends Controller
 
             $data = $validated;
             $data['user_id'] = auth()->id();
-            
-            // Map post category to migration 'type'
+
+            // Derive type from category so it is always correct regardless of what the frontend sends
             if ($request->category === 'research') {
                 $data['type'] = 'research';
             } elseif ($request->category === 'event') {
                 $data['type'] = 'event';
+            } else {
+                $data['type'] = 'discussion';
             }
-            
-            // Handle tags
-            if ($request->has('tags')) {
-                $tags = is_string($request->tags) ? explode(',', $request->tags) : $request->tags;
-                $data['tags'] = array_map('trim', $tags);
+
+            // Handle tags — guard against null/empty from ConvertEmptyStringsToNull middleware
+            if ($request->has('tags') && !empty($request->tags)) {
+                $raw = is_array($request->tags) ? $request->tags : explode(',', $request->tags);
+                $data['tags'] = array_values(array_filter(array_map('trim', $raw), 'strlen'));
+            } else {
+                $data['tags'] = [];
             }
 
             // Handle image upload

@@ -22,6 +22,7 @@ Route::prefix('selling')->group(function () {
         Route::delete('/orders/{id}',        [SellingItemController::class, 'cancelOrder']);
         Route::put('/orders/{id}/courier',   [SellingItemController::class, 'updateCourierDetails']);
         Route::put('/orders/{id}/delivery-status', [SellingItemController::class, 'updateDeliveryStatus']);
+        Route::put('/orders/{id}/mark-received',  [SellingItemController::class, 'markAsReceived']);
         Route::post('/{id}/initiate-purchase',[SellingItemController::class, 'initiatePurchase']);
         Route::post('/{id}/place-cod-order', [SellingItemController::class, 'placeCodOrder']);
         Route::post('/{id}/purchase',        [SellingItemController::class, 'trackPurchase']);

@@ -51,7 +51,8 @@ Route::get('/research/top-researches', [UploadController::class, 'getTopViewedRe
 Route::get('/research/{id}', [UploadController::class, 'getResearchDetails']);
 
 Route::prefix('research')->group(function () {
-    Route::get('/', [UploadController::class, 'getResearches']);
+    Route::get('',  [UploadController::class, 'getResearches']); // /research  (no trailing slash)
+    Route::get('/', [UploadController::class, 'getResearches']); // /research/ (with trailing slash)
     // ✅ Then wildcard routes
     Route::get('/{id}', [UploadController::class, 'getResearch']);
     Route::get('/{id}/download', [UploadController::class, 'downloadResearch']);
