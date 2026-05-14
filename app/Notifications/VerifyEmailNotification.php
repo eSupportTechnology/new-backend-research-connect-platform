@@ -30,7 +30,7 @@ class VerifyEmailNotification extends Notification
 
         parse_str(parse_url($verifyUrl, PHP_URL_QUERY), $params);
 
-        $frontendUrl = env('FRONTEND_URL')
+        $frontendUrl = config('app.frontend_url')
             . '/verify-email?'
             . http_build_query([
                 'id'        => $notifiable->getKey(),
