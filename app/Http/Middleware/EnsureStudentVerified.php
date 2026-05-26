@@ -21,6 +21,14 @@ class EnsureStudentVerified
         if ($user) {
             $student = $user->student;
 
+            if ($student && $student->verification_status === 'pending') {
+                return response()->json([
+                    'success'             => false,
+                    'message'             => 'Your account is pending admin approval. You cannot perform this action until your birth certificate is verified.',
+                    'verification_status' => 'pending',
+                ], 403);
+            }
+
             if ($student && $student->verification_status === 'rejected') {
                 return response()->json([
                     'success'             => false,

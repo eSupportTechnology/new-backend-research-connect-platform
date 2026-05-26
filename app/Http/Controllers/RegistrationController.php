@@ -27,6 +27,7 @@ class RegistrationController extends Controller
             'email'           => $validated['investorDetails']['email'],
             'password'        => Hash::make($validated['investorDetails']['password']),
             'role'            => 'INVESTOR',
+            'user_type'       => $request->input('userType'),
             'membership_tier' => 'bronze',
         ]);
         $investor = Investor::create([
