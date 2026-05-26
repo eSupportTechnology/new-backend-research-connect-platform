@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\JobResource;
+use App\Mail\JobApplicationMail;
+use App\Mail\JobPostedMail;
 use App\Models\Career;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -54,6 +57,7 @@ class JobController extends Controller
             'description' => 'required|string',
             'requirements' => 'nullable|string',
             'apply_link' => 'required|url',
+            'contact_email' => 'nullable|email|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -86,11 +90,26 @@ class JobController extends Controller
                 'description' => $request->description,
                 'requirements' => $request->requirements,
                 'apply_link' => $request->apply_link,
+                'contact_email' => $request->contact_email,
                 'status' => $status,
                 'is_featured' => $request->boolean('is_featured', false),
             ]);
 
             DB::commit();
+
+            // ── Send emails ──
+            try {
+                $poster = auth()->user();
+                // Confirmation to poster
+                Mail::to($poster->email)->send(new JobPostedMail($job->load('user'), false));
+                // Admin notification
+                $adminEmail = env('ADMIN_EMAIL', config('mail.from.address'));
+                if ($adminEmail) {
+                    Mail::to($adminEmail)->send(new JobPostedMail($job, true));
+                }
+            } catch (\Exception $mailEx) {
+                Log::warning('Job post email failed: ' . $mailEx->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -105,6 +124,63 @@ class JobController extends Controller
                 'success' => false,
                 'message' => 'Failed to submit job: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * AUTH: Apply to a job — sends email to the job poster.
+     * POST /api/jobs/{id}/apply
+     */
+    public function apply(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'profile_url' => 'required|url',
+            'message'     => 'nullable|string|max:2000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $job       = Career::with('user')->findOrFail($id);
+            $applicant = auth()->user();
+
+            // Determine recipient: use contact_email if set, else poster's email
+            $recipient = $job->contact_email ?: $job->user?->email;
+
+            if (!$recipient) {
+                return response()->json(['success' => false, 'message' => 'No contact email available for this job.'], 422);
+            }
+
+            Mail::to($recipient)->send(new JobApplicationMail(
+                job:              $job,
+                applicant:        $applicant,
+                profileUrl:       $request->profile_url,
+                applicantMessage: $request->message ?? ''
+            ));
+
+            // Also notify admin
+            $adminEmail = env('ADMIN_EMAIL', config('mail.from.address'));
+            if ($adminEmail && $adminEmail !== $recipient) {
+                Mail::to($adminEmail)->send(new JobApplicationMail(
+                    job:              $job,
+                    applicant:        $applicant,
+                    profileUrl:       $request->profile_url,
+                    applicantMessage: $request->message ?? ''
+                ));
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Your application has been sent successfully!',
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Job not found.'], 404);
+        } catch (\Exception $e) {
+            Log::error('Job application email failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to send application: ' . $e->getMessage()], 500);
         }
     }
 

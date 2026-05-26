@@ -22,6 +22,7 @@ class Career extends Model
         'description',
         'requirements',
         'apply_link',
+        'contact_email',
         'status',
         'is_featured'
     ];

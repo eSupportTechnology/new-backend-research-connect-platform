@@ -13,6 +13,7 @@ Route::get('/jobs', [JobController::class, 'index']);
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/jobs', [JobController::class, 'store']);
+    Route::post('/jobs/{id}/apply', [JobController::class, 'apply']);
     Route::delete('/jobs/{id}', [JobController::class, 'destroy']);
     
     // Admin only routes
