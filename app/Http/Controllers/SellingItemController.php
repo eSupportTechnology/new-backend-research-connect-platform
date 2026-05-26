@@ -3,6 +3,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\OrderPlacedBuyerMail;
+use App\Mail\OrderPlacedSellerMail;
 use App\Models\AdminNotification;
 use App\Models\Order;
 use App\Models\Profile\BankDetail;
@@ -11,12 +13,14 @@ use App\Models\Innovation\Innovation;
 use App\Models\Innovation\SellingItem;
 use App\Models\Research\Research;
 use App\Models\RegisterUsers\User;
+use App\Models\UserNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Aws\S3\S3Client;
-use Illuminate\Support\Facades\Log;
 
 class SellingItemController extends Controller
 {
@@ -855,6 +859,33 @@ class SellingItemController extends Controller
                 "{$buyer->first_name} {$buyer->last_name} placed a Cash on Delivery order for \"{$item->title}\" — LKR " . number_format($totalAmount, 2) . ".",
                 ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount]
             );
+
+            // Notify buyer
+            UserNotification::create([
+                'user_id' => $buyer->id,
+                'type'    => 'order_placed',
+                'title'   => 'Order Placed Successfully',
+                'message' => "Your order for \"{$item->title}\" has been placed. Ref: {$order->order_id_string}.",
+                'data'    => ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount],
+            ]);
+
+            // Notify seller
+            UserNotification::create([
+                'user_id' => $item->user_id,
+                'type'    => 'new_order_received',
+                'title'   => 'New Order Received',
+                'message' => "{$buyer->first_name} {$buyer->last_name} ordered \"{$item->title}\" — LKR " . number_format($totalAmount, 2) . ".",
+                'data'    => ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount],
+            ]);
+
+            // Send emails
+            try {
+                $seller = $item->user;
+                Mail::to($buyer->email)->send(new OrderPlacedBuyerMail($order, $item, $seller));
+                Mail::to($seller->email)->send(new OrderPlacedSellerMail($order, $item, $buyer));
+            } catch (\Exception $mailEx) {
+                Log::error('Order email failed: ' . $mailEx->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
