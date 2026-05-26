@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\OrderPlacedBuyerMail;
+use App\Mail\OrderPlacedSellerMail;
 use App\Models\AdminNotification;
 use App\Models\Advertisement\Advertisement;
 use App\Models\MembershipPayment;
 use App\Models\Order;
+use App\Models\UserNotification;
 use App\Models\VideoUploadPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class PayHereController extends Controller
 {
@@ -90,6 +94,39 @@ class PayHereController extends Controller
                             "{$buyerName} paid LKR " . number_format($order->amount, 2) . " for \"{$itemTitle}\".",
                             ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $order->amount]
                         );
+
+                        // Notify buyer
+                        if ($buyer) {
+                            UserNotification::create([
+                                'user_id' => $buyer->id,
+                                'type'    => 'order_placed',
+                                'title'   => 'Payment Confirmed — Order Placed',
+                                'message' => "Your payment of LKR " . number_format($order->amount, 2) . " for \"{$itemTitle}\" was successful. Ref: {$order->order_id_string}.",
+                                'data'    => ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $order->amount],
+                            ]);
+                        }
+
+                        // Notify seller
+                        if ($item && $item->user_id) {
+                            UserNotification::create([
+                                'user_id' => $item->user_id,
+                                'type'    => 'new_order_received',
+                                'title'   => 'New Order Received',
+                                'message' => "{$buyerName} paid LKR " . number_format($order->amount, 2) . " for \"{$itemTitle}\". Ref: {$order->order_id_string}.",
+                                'data'    => ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $order->amount],
+                            ]);
+                        }
+
+                        // Send emails
+                        try {
+                            $seller = $item?->user;
+                            if ($buyer && $seller && $item) {
+                                Mail::to($buyer->email)->send(new OrderPlacedBuyerMail($order, $item, $seller));
+                                Mail::to($seller->email)->send(new OrderPlacedSellerMail($order, $item, $buyer));
+                            }
+                        } catch (\Exception $mailEx) {
+                            Log::error('PayHere order email failed: ' . $mailEx->getMessage());
+                        }
 
                         Log::info("PayHere: Order payment successful. Internal ID: $internal_order_id");
                     } else if ($status_code == 0) { // 0 = Pending

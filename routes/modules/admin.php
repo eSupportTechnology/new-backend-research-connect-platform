@@ -15,7 +15,8 @@ Route::middleware('auth:sanctum')->prefix('super-admin')->group(function () {
     Route::get('/video-upload-payments', [VideoUploadPaymentController::class, 'adminIndex']);
 
     // Dashboard Stats
-    Route::get('/dashboard/stats', [SuperAdminController::class, 'getDashboardStats']);
+    Route::get('/dashboard/stats',         [SuperAdminController::class, 'getDashboardStats']);
+    Route::get('/dashboard/sidebar-counts',[SuperAdminController::class, 'getSidebarCounts']);
     
     // Leaderboard Management
     Route::get('/users-by-contribution', [SuperAdminController::class, 'getUsersByContribution']);

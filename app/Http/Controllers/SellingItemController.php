@@ -3,6 +3,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\OrderPlacedBuyerMail;
+use App\Mail\OrderPlacedSellerMail;
 use App\Models\AdminNotification;
 use App\Models\Order;
 use App\Models\Profile\BankDetail;
@@ -11,12 +13,14 @@ use App\Models\Innovation\Innovation;
 use App\Models\Innovation\SellingItem;
 use App\Models\Research\Research;
 use App\Models\RegisterUsers\User;
+use App\Models\UserNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Aws\S3\S3Client;
-use Illuminate\Support\Facades\Log;
 
 class SellingItemController extends Controller
 {
@@ -129,7 +133,35 @@ class SellingItemController extends Controller
             $perPage = $request->get('per_page', 12);
             $items = $query->paginate($perPage);
 
-            $items->getCollection()->transform(function ($item) {
+            $collection = $items->getCollection();
+
+            // Batch-fetch ratings in 2 queries instead of N
+            $innovationIds = $collection->filter(fn($i) => str_contains($i->sellable_type ?? '', 'Innovation'))->pluck('sellable_id')->unique()->values();
+            $researchIds   = $collection->filter(fn($i) => str_contains($i->sellable_type ?? '', 'Research'))->pluck('sellable_id')->unique()->values();
+
+            $innovationRatings = [];
+            if ($innovationIds->isNotEmpty()) {
+                \App\Models\Innovation\InnovationComment::whereIn('innovation_id', $innovationIds)
+                    ->selectRaw('innovation_id, ROUND(AVG(rating), 1) as average_rating, COUNT(*) as total_ratings')
+                    ->groupBy('innovation_id')
+                    ->get()
+                    ->each(function ($r) use (&$innovationRatings) {
+                        $innovationRatings[$r->innovation_id] = ['average_rating' => (float)$r->average_rating, 'total_ratings' => (int)$r->total_ratings];
+                    });
+            }
+
+            $researchRatings = [];
+            if ($researchIds->isNotEmpty()) {
+                \App\Models\Research\ResearchComment::whereIn('research_id', $researchIds)
+                    ->selectRaw('research_id, ROUND(AVG(rating), 1) as average_rating, COUNT(*) as total_ratings')
+                    ->groupBy('research_id')
+                    ->get()
+                    ->each(function ($r) use (&$researchRatings) {
+                        $researchRatings[$r->research_id] = ['average_rating' => (float)$r->average_rating, 'total_ratings' => (int)$r->total_ratings];
+                    });
+            }
+
+            $collection->transform(function ($item) use ($innovationRatings, $researchRatings) {
                 if ($item->is_paid && $item->discount_percentage > 0) {
                     $item->final_price = $item->discounted_price;
                     $item->saved_amount = $item->price - $item->discounted_price;
@@ -147,6 +179,14 @@ class SellingItemController extends Controller
                     $item->seller_id = $item->user->id;
                     $item->seller_business_name = $profile->business_name ?? null;
                 }
+
+                $isInnovation = str_contains($item->sellable_type ?? '', 'Innovation');
+                $ratingData = $isInnovation
+                    ? ($innovationRatings[$item->sellable_id] ?? ['average_rating' => 0.0, 'total_ratings' => 0])
+                    : ($researchRatings[$item->sellable_id]   ?? ['average_rating' => 0.0, 'total_ratings' => 0]);
+
+                $item->average_rating = $ratingData['average_rating'];
+                $item->total_ratings  = $ratingData['total_ratings'];
 
                 return $item;
             });
@@ -204,6 +244,34 @@ class SellingItemController extends Controller
                 })
                 ->orderBy('listed_at', 'desc')
                 ->paginate($request->get('per_page', 12));
+
+            // Batch-fetch ratings
+            $col = $items->getCollection();
+            $innovIds = $col->filter(fn($i) => str_contains($i->sellable_type ?? '', 'Innovation'))->pluck('sellable_id')->unique()->values();
+            $resIds   = $col->filter(fn($i) => str_contains($i->sellable_type ?? '', 'Research'))->pluck('sellable_id')->unique()->values();
+
+            $iRatings = [];
+            if ($innovIds->isNotEmpty()) {
+                \App\Models\Innovation\InnovationComment::whereIn('innovation_id', $innovIds)
+                    ->selectRaw('innovation_id, ROUND(AVG(rating),1) as average_rating, COUNT(*) as total_ratings')
+                    ->groupBy('innovation_id')->get()
+                    ->each(fn($r) => $iRatings[$r->innovation_id] = [(float)$r->average_rating, (int)$r->total_ratings]);
+            }
+            $rRatings = [];
+            if ($resIds->isNotEmpty()) {
+                \App\Models\Research\ResearchComment::whereIn('research_id', $resIds)
+                    ->selectRaw('research_id, ROUND(AVG(rating),1) as average_rating, COUNT(*) as total_ratings')
+                    ->groupBy('research_id')->get()
+                    ->each(fn($r) => $rRatings[$r->research_id] = [(float)$r->average_rating, (int)$r->total_ratings]);
+            }
+
+            $col->transform(function ($item) use ($iRatings, $rRatings) {
+                $isInno = str_contains($item->sellable_type ?? '', 'Innovation');
+                [$avg, $cnt] = $isInno ? ($iRatings[$item->sellable_id] ?? [0.0, 0]) : ($rRatings[$item->sellable_id] ?? [0.0, 0]);
+                $item->average_rating = $avg;
+                $item->total_ratings  = $cnt;
+                return $item;
+            });
 
             $profile = $seller->profile;
 
@@ -791,6 +859,33 @@ class SellingItemController extends Controller
                 "{$buyer->first_name} {$buyer->last_name} placed a Cash on Delivery order for \"{$item->title}\" — LKR " . number_format($totalAmount, 2) . ".",
                 ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount]
             );
+
+            // Notify buyer
+            UserNotification::create([
+                'user_id' => $buyer->id,
+                'type'    => 'order_placed',
+                'title'   => 'Order Placed Successfully',
+                'message' => "Your order for \"{$item->title}\" has been placed. Ref: {$order->order_id_string}.",
+                'data'    => ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount],
+            ]);
+
+            // Notify seller
+            UserNotification::create([
+                'user_id' => $item->user_id,
+                'type'    => 'new_order_received',
+                'title'   => 'New Order Received',
+                'message' => "{$buyer->first_name} {$buyer->last_name} ordered \"{$item->title}\" — LKR " . number_format($totalAmount, 2) . ".",
+                'data'    => ['order_id' => $order->id, 'order_ref' => $order->order_id_string, 'amount' => $totalAmount],
+            ]);
+
+            // Send emails
+            try {
+                $seller = $item->user;
+                Mail::to($buyer->email)->send(new OrderPlacedBuyerMail($order, $item, $seller));
+                Mail::to($seller->email)->send(new OrderPlacedSellerMail($order, $item, $buyer));
+            } catch (\Exception $mailEx) {
+                Log::error('Order email failed: ' . $mailEx->getMessage());
+            }
 
             return response()->json([
                 'success' => true,

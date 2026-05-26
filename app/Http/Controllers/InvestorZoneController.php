@@ -24,9 +24,10 @@ class InvestorZoneController extends Controller
     {
         $perPage = $request->get('per_page', 9);
 
-        $posts = InvestorZonePost::with(['user', 'user.profile'])  // ← add user.profile
-        ->where('type', $type)
+        $posts = InvestorZonePost::with(['user', 'user.profile'])
+            ->where('type', $type)
             ->where('category', $category)
+            ->where('status', 'approved')
             ->latest()
             ->paginate($perPage);
 
@@ -51,8 +52,9 @@ class InvestorZoneController extends Controller
     public function show(string $type, string $category, int $id)
     {
         try {
-            $post = InvestorZonePost::with(['user', 'user.profile', 'likes'])  // ← add user.profile
-            ->findOrFail($id);
+            $post = InvestorZonePost::with(['user', 'user.profile', 'likes'])
+                ->where('status', 'approved')
+                ->findOrFail($id);
 
             return response()->json([
                 'success' => true,
@@ -89,6 +91,7 @@ class InvestorZoneController extends Controller
             'email' => 'nullable|email',
             'mobile' => 'nullable|string|max:20',
             'linkedin' => 'nullable|string|max:255',
+            'investmentAmount' => 'nullable|numeric|min:0',
             'allowLikes' => 'nullable',
             'allowContactSharing' => 'nullable',
             'requestCollaboration' => 'nullable',
@@ -143,6 +146,7 @@ class InvestorZoneController extends Controller
                 'title' => $request->title,
                 'description' => $request->description,
                 'key_highlights' => $request->keyHighlights,
+                'investment_amount' => $request->investmentAmount ?: null,
                 'media_path' => $uploadedFiles['media'] ?? null,
                 'email' => $request->email,
                 'mobile' => $request->mobile,
@@ -423,6 +427,7 @@ class InvestorZoneController extends Controller
                 'skills' => $profile?->skills ?? [],
                 'user_id' => $user?->id ?? null,
             ],
+            'investmentAmount' => $post->investment_amount,
             'likes' => $post->likes()->count(),
             'isLiked' => $userId ? $post->isLikedByUser($userId) : false,
         ];
@@ -478,11 +483,28 @@ class InvestorZoneController extends Controller
 
         if ($request->filled('type'))     $query->where('type', $request->type);
         if ($request->filled('category')) $query->where('category', $request->category);
+        if ($request->filled('status'))   $query->where('status', $request->status);
 
         return response()->json([
             'success' => true,
             'data'    => $query->paginate($request->get('per_page', 15)),
         ]);
+    }
+
+    // ── Admin: approve a post ────────────────────────────────────────────────
+    public function adminApprove($id)
+    {
+        $post = InvestorZonePost::findOrFail($id);
+        $post->update(['status' => 'approved']);
+        return response()->json(['success' => true, 'message' => 'Post approved and published.']);
+    }
+
+    // ── Admin: reject a post ─────────────────────────────────────────────────
+    public function adminReject($id)
+    {
+        $post = InvestorZonePost::findOrFail($id);
+        $post->update(['status' => 'rejected']);
+        return response()->json(['success' => true, 'message' => 'Post rejected.']);
     }
 
     // ── Admin: delete a post ─────────────────────────────────────────────────

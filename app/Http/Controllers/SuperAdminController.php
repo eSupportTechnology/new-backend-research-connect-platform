@@ -17,6 +17,8 @@ use App\Models\HireRequest;
 use App\Models\MembershipPayment;
 use App\Models\MembershipPricing;
 use App\Models\RegisterUsers\Student;
+use App\Models\InvestorZone\InvestorZonePost;
+use App\Models\Community\CommunityPost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -722,5 +724,22 @@ class SuperAdminController extends Controller
             '90days'  => Carbon::now()->subDays(90),
             default   => Carbon::now()->subYears(10), // All time
         };
+    }
+
+    /** Lightweight counts for the sidebar badges — all queries run in < 1ms each */
+    public function getSidebarCounts()
+    {
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'student_verification' => Student::where('verification_status', 'pending')->count(),
+                'video_validation'     => Innovation::where('status', 'pending')->count(),
+                'research_papers'      => Research::where('status', 'pending')->count(),
+                'job_management'       => Career::where('status', 'pending')->count(),
+                'investor_zone'        => InvestorZonePost::where('status', 'pending')->count(),
+                'community_management' => CommunityPost::where('status', 'pending')->count(),
+                'hire_requests'        => HireRequest::where('status', 'pending')->count(),
+            ],
+        ]);
     }
 }

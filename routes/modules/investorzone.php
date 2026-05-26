@@ -19,6 +19,8 @@ Route::prefix('investorzone')->group(function () {
 
 // Admin investor zone moderation
 Route::middleware('auth:sanctum')->prefix('admin/investorzone')->group(function () {
-    Route::get('/posts', [InvestorZoneController::class, 'adminIndex']);
-    Route::delete('/posts/{id}', [InvestorZoneController::class, 'adminDestroy']);
+    Route::get('/posts',                  [InvestorZoneController::class, 'adminIndex']);
+    Route::patch('/posts/{id}/approve',   [InvestorZoneController::class, 'adminApprove']);
+    Route::patch('/posts/{id}/reject',    [InvestorZoneController::class, 'adminReject']);
+    Route::delete('/posts/{id}',          [InvestorZoneController::class, 'adminDestroy']);
 });
