@@ -1265,6 +1265,104 @@ class UploadController extends Controller
     /**
      * Remove Research (admin only)
      */
+    public function updateResearch(Request $request, $id)
+    {
+        $research = Research::where('id', $id)->where('user_id', auth()->id())->first();
+        if (!$research) {
+            return response()->json(['success' => false, 'message' => 'Research not found or unauthorized.'], 404);
+        }
+        if ($research->status === 'permanently_rejected') {
+            return response()->json(['success' => false, 'message' => 'Permanently rejected research cannot be edited.'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'title'          => 'required|string|max:255',
+            'abstract'       => 'required|string|max:500',
+            'thumbnail'      => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+            'category'       => 'required|string|max:200',
+            'sub_category'   => 'nullable|string|max:200',
+            'research_type'  => 'required|string|max:100',
+            'research_level' => 'required|string|max:100',
+            'tags'           => 'nullable|string',
+            'is_adult'       => 'nullable|in:0,1,true,false',
+            'is_paid'        => 'nullable',
+            'price'          => 'nullable|numeric|min:0',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $isPaid = filter_var($request->is_paid, FILTER_VALIDATE_BOOLEAN);
+        $data = [
+            'title'          => $request->title,
+            'abstract'       => $request->abstract,
+            'category'       => $request->category,
+            'sub_category'   => $request->sub_category,
+            'research_type'  => $request->research_type,
+            'research_level' => $request->research_level,
+            'tags'           => $request->tags,
+            'is_adult'       => filter_var($request->is_adult, FILTER_VALIDATE_BOOLEAN),
+            'is_paid'        => $isPaid,
+            'price'          => $isPaid ? $request->price : null,
+            'status'         => 'pending',
+        ];
+
+        if ($request->hasFile('thumbnail')) {
+            if ($research->thumbnail) $this->deleteFileByUrl($research->thumbnail);
+            $data['thumbnail'] = $this->uploadFile($request->file('thumbnail'), 'research/thumbnails');
+        }
+
+        $research->update($data);
+        return response()->json(['success' => true, 'message' => 'Research updated successfully.', 'data' => $research->fresh()]);
+    }
+
+    public function updateInnovation(Request $request, $id)
+    {
+        $innovation = Innovation::where('id', $id)->where('user_id', auth()->id())->first();
+        if (!$innovation) {
+            return response()->json(['success' => false, 'message' => 'Innovation not found or unauthorized.'], 404);
+        }
+        if ($innovation->status === 'permanently_rejected') {
+            return response()->json(['success' => false, 'message' => 'Permanently rejected innovation cannot be edited.'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'title'               => 'required|string|max:255',
+            'abstract'            => 'required|string|max:500',
+            'thumbnail'           => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+            'category'            => 'required|string',
+            'main_field'          => 'nullable|string|max:200',
+            'innovation_category' => 'nullable|string|max:200',
+            'tags'                => 'nullable|string',
+            'is_paid'             => 'nullable',
+            'price'               => 'nullable|numeric|min:0',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $isPaid = filter_var($request->is_paid, FILTER_VALIDATE_BOOLEAN);
+        $data = [
+            'title'               => $request->title,
+            'description'         => $request->abstract,
+            'category'            => $request->category,
+            'main_field'          => $request->main_field,
+            'innovation_category' => $request->innovation_category,
+            'tags'                => $request->tags,
+            'is_paid'             => $isPaid,
+            'price'               => $isPaid ? $request->price : null,
+            'status'              => 'pending',
+        ];
+
+        if ($request->hasFile('thumbnail')) {
+            if ($innovation->thumbnail) $this->deleteFileByUrl($innovation->thumbnail);
+            $data['thumbnail'] = $this->uploadFile($request->file('thumbnail'), 'innovation/thumbnails');
+        }
+
+        $innovation->update($data);
+        return response()->json(['success' => true, 'message' => 'Innovation updated successfully.', 'data' => $innovation->fresh()]);
+    }
+
     public function adminDestroyResearch($id)
     {
         try {

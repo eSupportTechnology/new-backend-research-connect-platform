@@ -10,45 +10,70 @@ class ResearchResource extends JsonResource
     {
         return [
             // Basic info
-            'id' => $this->id,
-            'title' => $this->title,
-            'description' => $this->abstract, // Map abstract to description for consistency
+            'id'          => $this->id,
+            'title'       => $this->title,
+            'description' => $this->abstract,
+            'abstract'    => $this->abstract,
 
-            // View count & Downloads
-            'views' => $this->views,
+            // Classification
+            'category'       => $this->category,
+            'sub_category'   => $this->sub_category,
+            'research_type'  => $this->research_type,
+            'research_level' => $this->research_level,
+
+            // Content flags
+            'is_adult' => $this->is_adult,
+            'is_paid'  => $this->is_paid,
+            'price'    => $this->when($this->is_paid, $this->price),
+            'status'   => $this->status,
+
+            // Tags
+            'tags'       => $this->tags_array,
+            'tags_array' => $this->tags_array,
+
+            // Document/Media
+            'document_url' => $this->document_url,
+            'thumbnail'    => $this->thumbnail,
+
+            // Stats
+            'views'     => $this->views,
             'downloads' => $this->downloads,
 
-            // Rating stats
+            // Ratings
             'average_rating' => $this->average_rating,
-            'total_ratings' => $this->total_ratings,
-            'user_rating' => $this->user_rating,
+            'total_ratings'  => $this->total_ratings,
+            'user_rating'    => $this->user_rating,
 
-            // Document/Media info
-            'document_url' => $this->document_url,
-            'thumbnail' => $this->thumbnail,
+            // Likes
+            'likes_count'       => $this->likes_count,
+            'dislikes_count'    => $this->dislikes_count,
+            'user_has_liked'    => $this->user_has_liked,
+            'user_has_disliked' => $this->user_has_disliked,
 
-            // Metadata
-            'category' => $this->category,
-            'tags' => $this->tags_array, // Already array format
-            'is_paid' => $this->is_paid,
-            'price' => $this->when($this->is_paid, $this->price),
-            'status' => $this->status,
-
-            // Author info (mapped as innovator for consistency if needed, or structured similarly)
+            // Author info
+            'first_name'       => $this->first_name,
+            'last_name'        => $this->last_name,
+            'full_author_name' => $this->full_author_name,
+            'extra_people'     => $this->extra_people,
             'innovator' => [
-                'name' => $this->full_author_name,
+                'name'       => $this->full_author_name,
                 'first_name' => $this->first_name,
-                'last_name' => $this->last_name,
+                'last_name'  => $this->last_name,
             ],
 
-            // User profile (detailed but useful)
+            // User profile
+            'user_id' => $this->user_id,
             'user' => [
-                'id' => $this->userProfile?->id,
-                'name' => $this->userProfile?->name,
-                'email' => $this->userProfile?->email,
+                'id'            => $this->userProfile?->id,
+                'name'          => $this->userProfile?->name,
+                'email'         => $this->userProfile?->email,
                 'profile_image' => $this->userProfile?->profile_image_url,
-                'bio' => $this->userProfile?->bio,
-                'follower_count' => $this->userProfile?->follower_count,
+                'bio'           => $this->userProfile?->bio,
+                'follower_count'=> $this->userProfile?->follower_count,
+            ],
+            'user_profile' => [
+                'name'              => $this->userProfile?->name,
+                'profile_image_url' => $this->userProfile?->profile_image_url,
             ],
 
             // Timestamps

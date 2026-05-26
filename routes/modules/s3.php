@@ -42,6 +42,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/research/{id}/resubmit',    [RevisionController::class, 'resubmitResearch']);
     Route::put('/innovations/{id}/update-price', [UploadController::class, 'updateInnovationPrice']);
     Route::put('/research/{id}/update-price', [UploadController::class, 'updateResearchPrice']);
+    Route::post('/research/{id}/update', [UploadController::class, 'updateResearch']);
+    Route::post('/innovations/{id}/update', [UploadController::class, 'updateInnovation']);
 });
 
 Route::get('/innovations/top-viewed', [UploadController::class, 'getTopViewedInnovations']);
