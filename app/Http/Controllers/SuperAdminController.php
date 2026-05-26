@@ -739,7 +739,6 @@ class SuperAdminController extends Controller
                 'investor_zone'        => InvestorZonePost::where('status', 'pending')->count(),
                 'community_management' => CommunityPost::where('status', 'pending')->count(),
                 'hire_requests'        => HireRequest::where('status', 'pending')->count(),
-                'new_users'            => User::where('created_at', '>=', Carbon::now()->subDays(3))->count(),
             ],
         ]);
     }
