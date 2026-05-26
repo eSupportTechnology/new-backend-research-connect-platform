@@ -25,8 +25,11 @@ class Innovation extends Model
         'video_url',
         'thumbnail',
         'category',
+        'main_field',
+        'innovation_category',
         'first_name',
         'last_name',
+        'extra_people',
         'tags',
         'is_paid',
         'price',
@@ -42,6 +45,7 @@ class Innovation extends Model
     protected $casts = [
         'is_paid' => 'boolean',
         'price' => 'decimal:2',
+        'extra_people' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
