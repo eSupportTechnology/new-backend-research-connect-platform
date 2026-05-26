@@ -15,9 +15,11 @@ class InvestorZonePost extends Model
         'key_highlights', 'media_path', 'email', 'mobile', 'linkedin',
         'allow_likes', 'allow_contact_sharing', 'request_collaboration',
         'require_approval', 'notify_engagement', 'status',
+        'investment_amount',
     ];
 
     protected $casts = [
+        'investment_amount' => 'decimal:2',
         'allow_likes' => 'boolean',
         'allow_contact_sharing' => 'boolean',
         'request_collaboration' => 'boolean',

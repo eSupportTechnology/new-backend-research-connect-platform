@@ -89,6 +89,7 @@ class InvestorZoneController extends Controller
             'email' => 'nullable|email',
             'mobile' => 'nullable|string|max:20',
             'linkedin' => 'nullable|string|max:255',
+            'investmentAmount' => 'nullable|numeric|min:0',
             'allowLikes' => 'nullable',
             'allowContactSharing' => 'nullable',
             'requestCollaboration' => 'nullable',
@@ -143,6 +144,7 @@ class InvestorZoneController extends Controller
                 'title' => $request->title,
                 'description' => $request->description,
                 'key_highlights' => $request->keyHighlights,
+                'investment_amount' => $request->investmentAmount ?: null,
                 'media_path' => $uploadedFiles['media'] ?? null,
                 'email' => $request->email,
                 'mobile' => $request->mobile,
@@ -423,6 +425,7 @@ class InvestorZoneController extends Controller
                 'skills' => $profile?->skills ?? [],
                 'user_id' => $user?->id ?? null,
             ],
+            'investmentAmount' => $post->investment_amount,
             'likes' => $post->likes()->count(),
             'isLiked' => $userId ? $post->isLikedByUser($userId) : false,
         ];
