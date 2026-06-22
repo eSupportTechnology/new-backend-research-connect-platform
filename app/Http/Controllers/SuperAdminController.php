@@ -361,9 +361,9 @@ class SuperAdminController extends Controller
                 ->withCount(['innovations', 'researches']);
 
             if ($type === 'innovator') {
-                $query->where('is_best_innovator', true);
+                $query->where('is_best_innovator', true)->has('innovations');
             } else {
-                $query->where('is_best_researcher', true);
+                $query->where('is_best_researcher', true)->has('researches');
             }
 
             $users = $query->get();
