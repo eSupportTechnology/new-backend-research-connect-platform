@@ -32,6 +32,7 @@ class Innovation extends Model
         'extra_people',
         'tags',
         'is_paid',
+        'is_adult',
         'price',
         'status',
         'views'
@@ -44,6 +45,7 @@ class Innovation extends Model
      */
     protected $casts = [
         'is_paid' => 'boolean',
+        'is_adult' => 'boolean',
         'price' => 'decimal:2',
         'extra_people' => 'array',
         'created_at' => 'datetime',
@@ -123,6 +125,17 @@ class Innovation extends Model
     public function scopePaid($query)
     {
         return $query->where('is_paid', true);
+    }
+
+    /**
+     * Scope a query to exclude adult (18+) content.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeExcludeAdult($query)
+    {
+        return $query->where('is_adult', false);
     }
 
     /**

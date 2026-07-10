@@ -29,6 +29,7 @@ class InnovationResource extends JsonResource
             // Metadata
             'category' => $this->category,
             'tags' => $this->tags_array, // Already array format
+            'is_adult' => $this->is_adult,
             'is_paid' => $this->is_paid,
             'price' => $this->when($this->is_paid, $this->price),
 
