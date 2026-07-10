@@ -634,6 +634,21 @@ class UploadController extends Controller
                 }
             }
 
+            // Two independent access paths:
+            //  1) Membership tier (upgrade → view as a benefit)
+            //  2) Individual purchase (any registered user, membership unchanged)
+            $sellingItem = \App\Models\Innovation\SellingItem::where('sellable_type', \App\Models\Research\Research::class)
+                ->where('sellable_id', $research->id)
+                ->first();
+
+            $research->selling_item_id = $sellingItem?->id;
+            $research->has_purchased   = ($userId && $sellingItem)
+                ? \App\Models\Order::where('buyer_id', $userId)
+                    ->where('selling_item_id', $sellingItem->id)
+                    ->whereIn('status', ['paid', 'cod_pending', 'completed'])
+                    ->exists()
+                : false;
+
             return response()->json([
                 'success' => true,
                 'data' => $research
@@ -934,6 +949,45 @@ class UploadController extends Controller
     {
         try {
             $research = Research::findOrFail($id);
+
+            // ── Server-side access gate. Two independent paths grant access:
+            //    (1) membership tier (paid → Gold, free → Silver+)
+            //    (2) individual purchase of this paper (any registered user)
+            //    The owner always has access. ───────────────────────────────────
+            $user    = auth('sanctum')->user();
+            $isOwner = $user && $user->id === $research->user_id;
+
+            if (!$isOwner) {
+                $order = ['bronze' => 1, 'silver' => 2, 'gold' => 3];
+                $level = $user ? ($order[strtolower($user->membership_tier ?? 'bronze')] ?? 1) : 0;
+
+                // Path 1 — membership tier: paid research → Gold; free → Silver+.
+                $tierOk = $level >= ($research->is_paid ? 3 : 2);
+
+                // Path 2 — individual purchase (paid research sold via marketplace).
+                $purchased = false;
+                if (!$tierOk && $user && $research->is_paid) {
+                    $sellingItem = \App\Models\Innovation\SellingItem::where('sellable_type', \App\Models\Research\Research::class)
+                        ->where('sellable_id', $research->id)
+                        ->first();
+                    if ($sellingItem) {
+                        $purchased = \App\Models\Order::where('buyer_id', $user->id)
+                            ->where('selling_item_id', $sellingItem->id)
+                            ->whereIn('status', ['paid', 'cod_pending', 'completed'])
+                            ->exists();
+                    }
+                }
+
+                if (!$tierOk && !$purchased) {
+                    return response()->json([
+                        'success' => false,
+                        'code'    => 'UPGRADE_OR_PURCHASE_REQUIRED',
+                        'message' => $research->is_paid
+                            ? 'Upgrade your membership or purchase this research to view it.'
+                            : 'Upgrade to Silver membership or higher to view this research.',
+                    ], 403);
+                }
+            }
 
             // Increment downloads
             $research->incrementDownloads();
