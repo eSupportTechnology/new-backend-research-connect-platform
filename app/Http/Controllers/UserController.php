@@ -10,6 +10,21 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    /**
+     * Retention window (days) a soft-deleted account must sit in the deleted
+     * portal before it becomes eligible for permanent deletion.
+     */
+    const RETENTION_DAYS = 30;
+
+    /**
+     * Only a super admin may restore or permanently delete accounts.
+     */
+    private function requireSuperAdmin()
+    {
+        $role = strtolower((string) auth()->user()?->role);
+        return in_array($role, ['superadmin', 'super_admin'], true);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Get Users
@@ -170,11 +185,18 @@ class UserController extends Controller
         try {
 
             $user = User::findOrFail($id);
-            AuditLog::logAction('USER_DELETE', "Deleted user: {$user->email}");
+
+            // Soft delete only — the account moves to the "Deleted Users" portal
+            // and can be restored. Permanent deletion is a separate, time-gated action.
+            $user->deleted_by = auth()->id();
+            $user->save();
+            $user->tokens()->delete();   // revoke sessions so the account is logged out immediately
             $user->delete();
 
+            AuditLog::logAction('USER_SOFT_DELETE', "Moved user to deleted portal: {$user->email}");
+
             return response()->json([
-                'message' => 'User deleted successfully'
+                'message' => 'User moved to the deleted portal. It can be restored within the retention period.'
             ]);
 
         } catch (\Exception $e) {
@@ -183,6 +205,106 @@ class UserController extends Controller
                 'error' => $e->getMessage()
             ], 500);
 
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Deleted Users Portal (recycle bin)
+    |--------------------------------------------------------------------------
+    */
+
+    // GET /users/deleted — list soft-deleted accounts
+    public function deleted(Request $request)
+    {
+        if (!$this->requireSuperAdmin()) {
+            return response()->json(['message' => 'Only a super admin can access the deleted portal.'], 403);
+        }
+
+        $users = User::onlyTrashed()
+            ->orderBy('deleted_at', 'desc')
+            ->get()
+            ->map(function ($u) {
+                $deletedAt  = $u->deleted_at;
+                $eligibleAt = $deletedAt ? $deletedAt->copy()->addDays(self::RETENTION_DAYS) : null;
+                $canDelete  = $eligibleAt ? now()->greaterThanOrEqualTo($eligibleAt) : false;
+                $daysLeft   = (!$canDelete && $eligibleAt && now()->lessThan($eligibleAt))
+                    ? (int) ceil(now()->diffInDays($eligibleAt)) : 0;
+
+                return [
+                    'id'                     => $u->id,
+                    'first_name'             => $u->first_name,
+                    'last_name'              => $u->last_name,
+                    'email'                  => $u->email,
+                    'role'                   => $u->role,
+                    'deleted_at'             => $deletedAt,
+                    'deleted_by'             => $u->deleted_by,
+                    'eligible_at'            => $eligibleAt,
+                    'days_remaining'         => $daysLeft,
+                    'can_permanently_delete' => $canDelete,
+                ];
+            });
+
+        return response()->json([
+            'success'        => true,
+            'data'           => $users,
+            'retention_days' => self::RETENTION_DAYS,
+        ]);
+    }
+
+    // POST /users/{id}/restore — bring an account back from the deleted portal
+    public function restore($id)
+    {
+        if (!$this->requireSuperAdmin()) {
+            return response()->json(['message' => 'Only a super admin can restore accounts.'], 403);
+        }
+
+        try {
+            $user = User::onlyTrashed()->findOrFail($id);
+            $user->restore();
+            $user->deleted_by = null;
+            $user->save();
+
+            AuditLog::logAction('USER_RESTORE', "Restored user from deleted portal: {$user->email}");
+
+            return response()->json(['success' => true, 'message' => 'User restored successfully.']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    // DELETE /users/{id}/force — permanent deletion (time-gated + typed confirmation)
+    public function forceDelete(Request $request, $id)
+    {
+        if (!$this->requireSuperAdmin()) {
+            return response()->json(['message' => 'Only a super admin can permanently delete accounts.'], 403);
+        }
+
+        try {
+            $user = User::onlyTrashed()->findOrFail($id);
+
+            // Typed confirmation guard
+            if ($request->input('confirmation') !== 'DELETE') {
+                return response()->json(['message' => 'Type DELETE to confirm permanent deletion.'], 422);
+            }
+
+            // Time-gate: the retention window must have fully elapsed
+            $eligibleAt = $user->deleted_at?->copy()->addDays(self::RETENTION_DAYS);
+            if (!$eligibleAt || now()->lessThan($eligibleAt)) {
+                $daysLeft = $eligibleAt ? (int) ceil(now()->diffInDays($eligibleAt)) : self::RETENTION_DAYS;
+                return response()->json([
+                    'message' => "This account can only be permanently deleted after the {$daysLeft}-day retention period.",
+                ], 403);
+            }
+
+            $email = $user->email;
+            $user->forceDelete();
+
+            AuditLog::logAction('USER_FORCE_DELETE', "Permanently deleted user: {$email}");
+
+            return response()->json(['success' => true, 'message' => 'User permanently deleted.']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
@@ -235,6 +357,8 @@ class UserController extends Controller
 
             if ($request->action === 'delete') {
 
+                // Soft delete — record who deleted, then move to the deleted portal
+                User::whereIn('id', $request->ids)->update(['deleted_by' => auth()->id()]);
                 User::whereIn('id', $request->ids)->delete();
 
             } elseif ($request->action === 'activate') {
