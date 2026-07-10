@@ -19,6 +19,16 @@ use Illuminate\Support\Facades\Log;
 class UploadController extends Controller
 {
     /**
+     * Whether the authenticated user is a School Student account and
+     * should be blocked from viewing 18+ (adult) content.
+     */
+    private function isSchoolStudent(): bool
+    {
+        $user = auth('sanctum')->user();
+        return $user !== null && $user->user_type === 'School Student';
+    }
+
+    /**
      * Upload Research Paper
      */
     public function uploadResearch(Request $request)
@@ -184,6 +194,7 @@ class UploadController extends Controller
             'lastName'             => 'required|string|max:100',
             'extra_people'         => 'nullable|string',
             'tags'                 => 'nullable|string',
+            'is_adult'             => 'nullable|in:0,1,true,false',
             'price'                => 'required|in:yes,no',
             'priceAmount'          => 'required_if:price,yes|nullable|numeric|min:0',
             'upload_token'         => 'nullable|string',
@@ -298,6 +309,7 @@ class UploadController extends Controller
                 'last_name'           => $request->lastName,
                 'extra_people'        => $request->extra_people ? json_decode($request->extra_people, true) : null,
                 'tags'                => $request->tags,
+                'is_adult'            => filter_var($request->is_adult, FILTER_VALIDATE_BOOLEAN),
                 'is_paid'             => $isPaid,
                 'price'               => $priceAmount,
                 'status'              => 'pending',
@@ -352,6 +364,10 @@ class UploadController extends Controller
     public function getResearches(Request $request)
     {
         $query = Research::with(['userProfile', 'comments'])->withCount(['likes', 'dislikes']);
+
+        if ($this->isSchoolStudent()) {
+            $query->excludeAdult();
+        }
 
         // Admin mode: show_all=true bypasses the approved-only filter
         if ($request->has('show_all') && $request->show_all === 'true') {
@@ -491,6 +507,10 @@ class UploadController extends Controller
         $query = Innovation::with('userProfile')
             ->withCount('innovationViews');
 
+        if ($this->isSchoolStudent()) {
+            $query->excludeAdult();
+        }
+
         // Apply filters
         if ($request->has('category')) {
             $query->category($request->category);
@@ -542,6 +562,7 @@ class UploadController extends Controller
         try {
             $topInnovations = Innovation::with('userProfile')
                 ->where('status', 'active') // Only get active innovations
+                ->when($this->isSchoolStudent(), fn ($q) => $q->excludeAdult())
                 ->orderBy('views', 'desc')
                 ->take(5)
                 ->get();
@@ -563,6 +584,7 @@ class UploadController extends Controller
         try {
             $topResearches = Research::with('userProfile')
                 ->where('status', 'approved') // Only get approved researches
+                ->when($this->isSchoolStudent(), fn ($q) => $q->excludeAdult())
                 ->orderBy('views', 'desc')
                 ->take(5)
                 ->get();
@@ -586,6 +608,14 @@ class UploadController extends Controller
         try {
             $research = Research::with('userProfile')->findOrFail($id);
 
+            if ($research->is_adult && $this->isSchoolStudent()) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'AGE_RESTRICTED',
+                    'message' => 'This research paper is marked as 18+ and is not available on School Student accounts.'
+                ], 403);
+            }
+
             $userId = auth('sanctum')->id();
 
             // If logged in → track view per user
@@ -603,6 +633,21 @@ class UploadController extends Controller
                     $research->incrementViews();
                 }
             }
+
+            // Two independent access paths:
+            //  1) Membership tier (upgrade → view as a benefit)
+            //  2) Individual purchase (any registered user, membership unchanged)
+            $sellingItem = \App\Models\Innovation\SellingItem::where('sellable_type', \App\Models\Research\Research::class)
+                ->where('sellable_id', $research->id)
+                ->first();
+
+            $research->selling_item_id = $sellingItem?->id;
+            $research->has_purchased   = ($userId && $sellingItem)
+                ? \App\Models\Order::where('buyer_id', $userId)
+                    ->where('selling_item_id', $sellingItem->id)
+                    ->whereIn('status', ['paid', 'cod_pending', 'completed'])
+                    ->exists()
+                : false;
 
             return response()->json([
                 'success' => true,
@@ -624,6 +669,14 @@ class UploadController extends Controller
     {
         try {
             $innovation = Innovation::with('userProfile')->findOrFail($id);
+
+            if ($innovation->is_adult && $this->isSchoolStudent()) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'AGE_RESTRICTED',
+                    'message' => 'This innovation video is marked as 18+ and is not available on School Student accounts.'
+                ], 403);
+            }
 
             $userId = auth('sanctum')->id();
 
@@ -663,6 +716,14 @@ class UploadController extends Controller
     {
         try {
             $research = Research::with('userProfile')->findOrFail($id);
+
+            if ($research->is_adult && $this->isSchoolStudent()) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'AGE_RESTRICTED',
+                    'message' => 'This research paper is marked as 18+ and is not available on School Student accounts.'
+                ], 403);
+            }
 
             $userId = auth('sanctum')->id();
 
@@ -748,6 +809,14 @@ class UploadController extends Controller
     {
         try {
             $innovation = Innovation::findOrFail($id);
+
+            if ($innovation->is_adult && $this->isSchoolStudent()) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'AGE_RESTRICTED',
+                    'message' => 'This innovation video is marked as 18+ and is not available on School Student accounts.'
+                ], 403);
+            }
 
             // Increment views
             $innovation->incrementViews();
@@ -880,6 +949,45 @@ class UploadController extends Controller
     {
         try {
             $research = Research::findOrFail($id);
+
+            // ── Server-side access gate. Two independent paths grant access:
+            //    (1) membership tier (paid → Gold, free → Silver+)
+            //    (2) individual purchase of this paper (any registered user)
+            //    The owner always has access. ───────────────────────────────────
+            $user    = auth('sanctum')->user();
+            $isOwner = $user && $user->id === $research->user_id;
+
+            if (!$isOwner) {
+                $order = ['bronze' => 1, 'silver' => 2, 'gold' => 3];
+                $level = $user ? ($order[strtolower($user->membership_tier ?? 'bronze')] ?? 1) : 0;
+
+                // Path 1 — membership tier: paid research → Gold; free → Silver+.
+                $tierOk = $level >= ($research->is_paid ? 3 : 2);
+
+                // Path 2 — individual purchase (paid research sold via marketplace).
+                $purchased = false;
+                if (!$tierOk && $user && $research->is_paid) {
+                    $sellingItem = \App\Models\Innovation\SellingItem::where('sellable_type', \App\Models\Research\Research::class)
+                        ->where('sellable_id', $research->id)
+                        ->first();
+                    if ($sellingItem) {
+                        $purchased = \App\Models\Order::where('buyer_id', $user->id)
+                            ->where('selling_item_id', $sellingItem->id)
+                            ->whereIn('status', ['paid', 'cod_pending', 'completed'])
+                            ->exists();
+                    }
+                }
+
+                if (!$tierOk && !$purchased) {
+                    return response()->json([
+                        'success' => false,
+                        'code'    => 'UPGRADE_OR_PURCHASE_REQUIRED',
+                        'message' => $research->is_paid
+                            ? 'Upgrade your membership or purchase this research to view it.'
+                            : 'Upgrade to Silver membership or higher to view this research.',
+                    ], 403);
+                }
+            }
 
             // Increment downloads
             $research->incrementDownloads();
@@ -1334,6 +1442,7 @@ class UploadController extends Controller
             'main_field'          => 'nullable|string|max:200',
             'innovation_category' => 'nullable|string|max:200',
             'tags'                => 'nullable|string',
+            'is_adult'            => 'nullable|in:0,1,true,false',
             'is_paid'             => 'nullable',
             'price'               => 'nullable|numeric|min:0',
         ]);
@@ -1349,6 +1458,7 @@ class UploadController extends Controller
             'main_field'          => $request->main_field,
             'innovation_category' => $request->innovation_category,
             'tags'                => $request->tags,
+            'is_adult'            => filter_var($request->is_adult, FILTER_VALIDATE_BOOLEAN),
             'is_paid'             => $isPaid,
             'price'               => $isPaid ? $request->price : null,
             'status'              => 'pending',

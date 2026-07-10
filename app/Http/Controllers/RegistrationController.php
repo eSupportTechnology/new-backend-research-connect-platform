@@ -13,6 +13,14 @@ class RegistrationController extends Controller
 {
     public function registerInvestor(Request $request)
     {
+        // School Student is only available for General User registrations.
+        if (strcasecmp(trim((string) $request->input('userType')), 'School Student') === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'School Student can only register under the General User category.',
+            ], 422);
+        }
+
         $validated = $request->validate([
             'investorDetails.firstName' => 'required|string|max:255',
             'investorDetails.lastName' => 'required|string|max:255',
@@ -133,6 +141,15 @@ class RegistrationController extends Controller
     public function registerBoth(Request $request)
     {
         $isStudent = filter_var($request->input('isSchoolStudent', false), FILTER_VALIDATE_BOOLEAN);
+
+        // School Student is only available for General User registrations —
+        // not for Investor or Both (per the registration profession list spec).
+        if ($isStudent || strcasecmp(trim((string) $request->input('userType')), 'School Student') === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'School Student can only register under the General User category.',
+            ], 422);
+        }
 
         $validated = $request->validate([
             'coreDetails.firstName' => 'required|string|max:255',

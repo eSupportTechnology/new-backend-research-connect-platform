@@ -946,6 +946,24 @@ class SellingItemController extends Controller
         try {
             $order = Order::where('seller_id', auth()->id())->findOrFail($id);
 
+            // Once the buyer has confirmed receipt, the status is final — the seller
+            // must not be able to revert it (e.g. back to "dispatched").
+            if ($order->delivery_status === 'delivered') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This order has been confirmed as received and its status can no longer be changed.',
+                ], 422);
+            }
+
+            // Once the delivery deadline has passed, the seller can no longer change
+            // the status from their dashboard (protects the deadline-counting system).
+            if ($order->delivery_deadline && now()->greaterThan(\Carbon\Carbon::parse($order->delivery_deadline))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The delivery deadline has passed; the status can no longer be changed.',
+                ], 422);
+            }
+
             $updateData = ['delivery_status' => $request->delivery_status];
 
             if ($request->delivery_status === 'delivered') {

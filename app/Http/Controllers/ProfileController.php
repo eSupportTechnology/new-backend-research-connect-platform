@@ -109,9 +109,13 @@ class ProfileController extends Controller
             $profileData['experiences'] = $profile->experiences;
             $profileData['educations'] = $profile->educations;
 
+            $authUser = auth('sanctum')->user();
+            $hideAdult = $authUser !== null && $authUser->user_type === 'School Student';
+
             // Get user's innovations
             $innovations = \App\Models\Innovation\Innovation::where('user_id', $user->id)
                 ->withCount('innovationViews')
+                ->when($hideAdult, fn ($q) => $q->excludeAdult())
                 ->latest()
                 ->get()
                 ->map(function ($innovation) {
@@ -124,6 +128,7 @@ class ProfileController extends Controller
             // Get user's research papers
             $researches = \App\Models\Research\Research::where('user_id', $user->id)
                 ->withCount('researchViews')
+                ->when($hideAdult, fn ($q) => $q->excludeAdult())
                 ->latest()
                 ->get()
                 ->map(function ($research) {

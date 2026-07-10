@@ -166,6 +166,17 @@ class Research extends Model
     }
 
     /**
+     * Scope a query to exclude adult (18+) content.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeExcludeAdult($query)
+    {
+        return $query->where('is_adult', false);
+    }
+
+    /**
      * Scope a query to order by most viewed.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query

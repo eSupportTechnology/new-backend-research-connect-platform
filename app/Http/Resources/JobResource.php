@@ -60,6 +60,7 @@ class JobResource extends JsonResource
             'description' => $this->description,
             'requirements' => $this->requirements,
             'apply_link' => $this->apply_link,
+            'contact_email' => $this->contact_email,
             'status' => $this->status,
             'is_featured' => $this->is_featured,
             'user' => [

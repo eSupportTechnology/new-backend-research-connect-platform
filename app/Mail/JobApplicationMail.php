@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -16,7 +17,8 @@ class JobApplicationMail extends Mailable
         public $job,
         public $applicant,
         public string $profileUrl,
-        public string $applicantMessage
+        public string $applicantMessage,
+        public ?string $cvPath = null
     ) {}
 
     public function envelope(): Envelope
@@ -29,5 +31,13 @@ class JobApplicationMail extends Mailable
     public function content(): Content
     {
         return new Content(view: 'emails.job_application');
+    }
+
+    /**
+     * Attach the applicant's CV when one was uploaded.
+     */
+    public function attachments(): array
+    {
+        return $this->cvPath ? [Attachment::fromPath($this->cvPath)] : [];
     }
 }
