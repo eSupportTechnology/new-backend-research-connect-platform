@@ -56,8 +56,8 @@ class JobController extends Controller
             'salary_range' => 'nullable|string',
             'description' => 'required|string',
             'requirements' => 'nullable|string',
-            'apply_link' => 'required|url',
-            'contact_email' => 'nullable|email|max:255',
+            'apply_link' => 'nullable|url',
+            'contact_email' => 'required|email|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -136,6 +136,7 @@ class JobController extends Controller
         $validator = Validator::make($request->all(), [
             'profile_url' => 'required|url',
             'message'     => 'nullable|string|max:2000',
+            'cv'          => 'nullable|file|mimes:pdf,doc,docx|max:5120',
         ]);
 
         if ($validator->fails()) {
@@ -153,23 +154,21 @@ class JobController extends Controller
                 return response()->json(['success' => false, 'message' => 'No contact email available for this job.'], 422);
             }
 
+            // Optional CV upload — stored so it can be attached to the email
+            $cvPath = null;
+            if ($request->hasFile('cv')) {
+                $stored = $request->file('cv')->store('job_applications', 'public');
+                $cvPath = storage_path('app/public/' . $stored);
+            }
+
+            // Send the application to the job's contact email only
             Mail::to($recipient)->send(new JobApplicationMail(
                 job:              $job,
                 applicant:        $applicant,
                 profileUrl:       $request->profile_url,
-                applicantMessage: $request->message ?? ''
+                applicantMessage: $request->message ?? '',
+                cvPath:           $cvPath
             ));
-
-            // Also notify admin
-            $adminEmail = env('ADMIN_EMAIL', config('mail.from.address'));
-            if ($adminEmail && $adminEmail !== $recipient) {
-                Mail::to($adminEmail)->send(new JobApplicationMail(
-                    job:              $job,
-                    applicant:        $applicant,
-                    profileUrl:       $request->profile_url,
-                    applicantMessage: $request->message ?? ''
-                ));
-            }
 
             return response()->json([
                 'success' => true,
