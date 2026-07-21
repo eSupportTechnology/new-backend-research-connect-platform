@@ -49,9 +49,17 @@ class InvestorZonePost extends Model
 
     public function getMediaUrlAttribute()
     {
-        return $this->media_path
-            ? asset('storage/' . $this->media_path)
-            : null;
+        if (!$this->media_path) {
+            return null;
+        }
+
+        // Uploads go straight to S3 and store an absolute URL. Prefixing those
+        // with asset('storage/') produced ".../storage/https://bucket.s3...".
+        if (\Illuminate\Support\Str::startsWith($this->media_path, ['http://', 'https://'])) {
+            return $this->media_path;
+        }
+
+        return asset('storage/' . $this->media_path);
     }
     public function userProfile()
     {
