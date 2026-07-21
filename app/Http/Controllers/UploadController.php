@@ -361,6 +361,48 @@ class UploadController extends Controller
     /**
      * Get all research papers with filters
      */
+    /**
+     * Categories that actually have published research behind them, for the
+     * search page sidebar. Listing the full taxonomy there would offer filters
+     * that always return nothing.
+     */
+    public function getResearchFilterOptions()
+    {
+        $query = Research::approved();
+
+        if ($this->isSchoolStudent()) {
+            $query->excludeAdult();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'categories' => $query->whereNotNull('category')->where('category', '!=', '')
+                    ->distinct()->orderBy('category')->pluck('category')->values(),
+            ],
+        ]);
+    }
+
+    /**
+     * Same as getResearchFilterOptions(), for the innovation search page.
+     */
+    public function getInnovationFilterOptions()
+    {
+        $query = Innovation::active();
+
+        if ($this->isSchoolStudent()) {
+            $query->excludeAdult();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'categories' => $query->whereNotNull('category')->where('category', '!=', '')
+                    ->distinct()->orderBy('category')->pluck('category')->values(),
+            ],
+        ]);
+    }
+
     public function getResearches(Request $request)
     {
         $query = Research::with(['userProfile', 'comments'])->withCount(['likes', 'dislikes']);

@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Route;
  * Career / Job Posts Routes
  */
 
-// Public routes
+// Public routes — the static path must come before any /jobs/{id} wildcard
+Route::get('/jobs/filter-options', [JobController::class, 'filterOptions']);
 Route::get('/jobs', [JobController::class, 'index']);
 
 // Protected routes

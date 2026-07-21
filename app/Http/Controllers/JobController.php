@@ -27,7 +27,7 @@ class JobController extends Controller
             $query->where('category', $request->category);
         }
 
-        if ($request->has('search')) {
+        if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('title', 'LIKE', "%{$search}%")
@@ -36,9 +36,34 @@ class JobController extends Controller
             });
         }
 
+        if ($request->filled('location')) {
+            $query->where('location', 'LIKE', "%{$request->location}%");
+        }
+
         $jobs = $query->latest()->paginate($request->get('per_page', 10));
 
         return JobResource::collection($jobs);
+    }
+
+    /**
+     * Distinct titles and locations across all approved jobs, for the search
+     * dropdowns on the careers page. Served separately from index() so the
+     * lists are complete rather than limited to the current page of results.
+     */
+    public function filterOptions()
+    {
+        $approved = Career::where('status', 'approved');
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'titles'    => (clone $approved)->whereNotNull('title')
+                    ->distinct()->orderBy('title')->pluck('title')->values(),
+                'locations' => (clone $approved)->whereNotNull('location')
+                    ->where('location', '!=', '')
+                    ->distinct()->orderBy('location')->pluck('location')->values(),
+            ],
+        ]);
     }
 
     /**
