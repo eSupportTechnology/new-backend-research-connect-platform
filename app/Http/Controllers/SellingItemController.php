@@ -916,12 +916,26 @@ class SellingItemController extends Controller
         try {
             $order = Order::where('seller_id', auth()->id())->findOrFail($id);
 
+            // "Delivered" is final — updating courier details must not drag the
+            // order back to "dispatched".
+            if ($order->delivery_status === 'delivered') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This order has been confirmed as received and its status can no longer be changed.',
+                ], 422);
+            }
+
+            $wasPending = $order->delivery_status === 'pending';
+
             $order->update([
                 'courier_name'    => $request->courier_name,
                 'tracking_number' => $request->tracking_number,
                 'courier_phone'   => $request->courier_phone,
-                'delivery_status' => 'dispatched',
+                // Only move the order forward — an order already in transit stays there.
+                'delivery_status' => $wasPending ? 'dispatched' : $order->delivery_status,
             ]);
+
+            $this->notifyBuyerOfDelivery($order);
 
             return response()->json(['success' => true, 'message' => 'Courier details updated', 'data' => $order]);
 
@@ -976,10 +990,71 @@ class SellingItemController extends Controller
 
             $order->update($updateData);
 
+            $this->notifyBuyerOfDelivery($order);
+
             return response()->json(['success' => true, 'message' => 'Delivery status updated', 'data' => $order]);
 
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Failed to update delivery status'], 500);
+        }
+    }
+
+    /**
+     * Tell the buyer that the seller moved their order along. Called from both
+     * the courier-details and delivery-status endpoints so the buyer always
+     * hears about a change they did not make themselves.
+     */
+    private function notifyBuyerOfDelivery(Order $order): void
+    {
+        // Re-submitting the same details is not news — only tell the buyer when
+        // something they care about actually moved.
+        if (!$order->wasChanged(['delivery_status', 'courier_name', 'tracking_number'])) {
+            return;
+        }
+
+        $item  = $order->sellingItem;
+        $title = $item->title ?? 'your order';
+
+        $copy = [
+            'dispatched' => [
+                'Order Dispatched',
+                "Your order for \"{$title}\" has been dispatched"
+                    . ($order->courier_name ? " via {$order->courier_name}" : '')
+                    . ($order->tracking_number ? " (tracking: {$order->tracking_number})" : '') . '.',
+            ],
+            'in_transit' => [
+                'Order In Transit',
+                "Your order for \"{$title}\" is on its way.",
+            ],
+            'delivered'  => [
+                'Order Delivered',
+                "Your order for \"{$title}\" has been marked as delivered.",
+            ],
+        ];
+
+        if (!isset($copy[$order->delivery_status])) {
+            return;
+        }
+
+        [$title_, $message] = $copy[$order->delivery_status];
+
+        try {
+            UserNotification::create([
+                'user_id' => $order->buyer_id,
+                'type'    => 'order_delivery_update',
+                'title'   => $title_,
+                'message' => $message,
+                'data'    => [
+                    'order_id'        => $order->id,
+                    'order_ref'       => $order->order_id_string,
+                    'delivery_status' => $order->delivery_status,
+                    'courier_name'    => $order->courier_name,
+                    'tracking_number' => $order->tracking_number,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            // A notification failure must never fail the seller's update.
+            Log::error('Delivery notification failed: ' . $e->getMessage());
         }
     }
 

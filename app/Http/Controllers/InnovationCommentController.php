@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 
+use App\Http\Controllers\Concerns\VerifiesStorePurchase;
 use App\Models\Innovation\Innovation;
 use App\Models\Innovation\InnovationComment;
 use App\Models\Innovation\InnovationCommentLike;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 class InnovationCommentController extends Controller
 {
+    use VerifiesStorePurchase;
+
     /**
      * Get all comments for an innovation
      */
@@ -84,6 +87,11 @@ class InnovationCommentController extends Controller
                     'success' => false,
                     'message' => 'Innovation not found',
                 ], 404);
+            }
+
+            // If this innovation is listed in the store, only buyers may review it
+            if ($denied = $this->denyIfNotPurchaser(Innovation::class, $innovationId)) {
+                return $denied;
             }
 
             // Check if user already commented on this innovation

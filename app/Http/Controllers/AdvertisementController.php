@@ -507,7 +507,44 @@ class AdvertisementController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Advertisement approved and is now live.',
-            'data'    => $ad,
+            'data'    => $ad->fresh(),
+        ]);
+    }
+
+    /**
+     * Admin records a payment that was settled outside the online flow
+     * (bank transfer, cash, invoice). This only confirms payment — the ad
+     * still has to be approved before it goes live.
+     */
+    public function markAsPaid(Request $request, $id)
+    {
+        $ad = Advertisement::find($id);
+
+        if (!$ad) {
+            return response()->json(['success' => false, 'message' => 'Advertisement not found.'], 404);
+        }
+
+        if ($ad->payment_status === 'paid') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This advertisement is already marked as paid.',
+            ], 422);
+        }
+
+        $ad->update([
+            'payment_status' => 'paid',
+            'payment_id'     => $ad->payment_id ?: 'manual-' . auth()->id(),
+        ]);
+
+        \App\Models\AuditLog::logAction(
+            'AD_MARKED_PAID',
+            "Marked advertisement #{$ad->id} (\"{$ad->title}\") as paid manually."
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment recorded. The advertisement can now be approved.',
+            'data'    => $ad->fresh(),
         ]);
     }
 

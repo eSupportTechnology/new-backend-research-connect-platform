@@ -47,9 +47,11 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::get('/innovations/top-viewed', [UploadController::class, 'getTopViewedInnovations']);
+Route::get('/innovations/filter-options', [UploadController::class, 'getInnovationFilterOptions']);
 Route::get('/innovations/{id}', [UploadController::class, 'getInnovationDetails']);
 
 Route::get('/research/top-researches', [UploadController::class, 'getTopViewedResearches']);
+Route::get('/research/filter-options', [UploadController::class, 'getResearchFilterOptions']);
 Route::get('/research/{id}', [UploadController::class, 'getResearchDetails']);
 
 Route::prefix('research')->group(function () {

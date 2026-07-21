@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\RegisterUsers\Investor;
+use App\Models\RegisterUsers\ParentModel;
+use App\Models\RegisterUsers\Student;
 use App\Models\RegisterUsers\User;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
@@ -17,12 +20,21 @@ class UserController extends Controller
     const RETENTION_DAYS = 30;
 
     /**
-     * Only a super admin may restore or permanently delete accounts.
+     * Only a super admin may delete, restore or permanently delete accounts.
      */
     private function requireSuperAdmin()
     {
-        $role = strtolower((string) auth()->user()?->role);
-        return in_array($role, ['superadmin', 'super_admin'], true);
+        return $this->isSuperAdminRole(auth()->user()?->role);
+    }
+
+    /**
+     * Super admin accounts are protected: they cannot be deactivated or
+     * deleted through user management, so the platform can never be left
+     * without a usable super admin.
+     */
+    private function isSuperAdminRole($role)
+    {
+        return in_array(strtolower((string) $role), ['superadmin', 'super_admin'], true);
     }
 
     /*
@@ -121,6 +133,46 @@ class UserController extends Controller
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * A single user with the details that live in the related tables — the
+     * admin edit modal needs these, and the plain user row does not carry
+     * phone, address, investment preferences or student details.
+     */
+    public function show($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $investor = Investor::where('user_id', $user->id)->first();
+            $student  = Student::where('user_id', $user->id)->first();
+            $parent   = $student ? ParentModel::where('student_id', $student->id)->first() : null;
+
+            return response()->json([
+                'success' => true,
+                'data'    => array_merge($user->toArray(), [
+                    'phone'                  => $investor?->phone,
+                    'address'                => $investor?->address,
+                    'investment_preferences' => $investor?->investment_preferences,
+
+                    'school_name'            => $student?->school_name,
+                    'grade_level'            => $student?->grade_level,
+                    'student_id'             => $student?->student_id,
+
+                    'parent_first_name'      => $parent?->first_name,
+                    'parent_last_name'       => $parent?->last_name,
+                    'parent_email'           => $parent?->email,
+                    'parent_phone'           => $parent?->phone,
+                    'relation'               => $parent?->relation,
+                ]),
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'User not found'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function update(Request $request, $id)
     {
         try {
@@ -139,7 +191,12 @@ class UserController extends Controller
                 'password'   => 'sometimes|min:6',
                 'role'       => 'sometimes|required|string|in:admin,manager,superadmin,marketing',
                 'user_type'  => 'sometimes|string|in:regular,admin',
-                'status'     => 'sometimes|in:Active,Inactive'
+                'status'     => 'sometimes|in:Active,Inactive',
+
+                // Related-table fields the edit modal shows
+                'phone'                  => 'sometimes|nullable|string|max:30',
+                'address'                => 'sometimes|nullable|string|max:500',
+                'investment_preferences' => 'sometimes|nullable|string|max:1000',
             ]);
 
             $updateData = [
@@ -156,6 +213,22 @@ class UserController extends Controller
             }
 
             $user->update($updateData);
+
+            // Persist the investor-side fields too, otherwise the modal shows
+            // them, accepts edits and silently drops them on save.
+            $investorFields = array_filter(
+                [
+                    'phone'                  => $validated['phone'] ?? null,
+                    'address'                => $validated['address'] ?? null,
+                    'investment_preferences' => $validated['investment_preferences'] ?? null,
+                ],
+                fn ($key) => array_key_exists($key, $validated),
+                ARRAY_FILTER_USE_KEY
+            );
+
+            if (!empty($investorFields)) {
+                Investor::updateOrCreate(['user_id' => $user->id], $investorFields);
+            }
 
             return response()->json($user);
 
@@ -182,9 +255,19 @@ class UserController extends Controller
 
     public function destroy($id)
     {
+        if (!$this->requireSuperAdmin()) {
+            return response()->json(['message' => 'Only a super admin can delete accounts.'], 403);
+        }
+
         try {
 
             $user = User::findOrFail($id);
+
+            if ($this->isSuperAdminRole($user->role)) {
+                return response()->json([
+                    'message' => 'Super admin accounts cannot be deleted.'
+                ], 403);
+            }
 
             // Soft delete only — the account moves to the "Deleted Users" portal
             // and can be restored. Permanent deletion is a separate, time-gated action.
@@ -320,6 +403,12 @@ class UserController extends Controller
 
             $user = User::findOrFail($id);
 
+            if ($this->isSuperAdminRole($user->role)) {
+                return response()->json([
+                    'message' => 'Super admin accounts cannot be deactivated.'
+                ], 403);
+            }
+
             $user->status = $user->status === 'Active' ? 'Inactive' : 'Active';
             $user->save();
 
@@ -355,29 +444,54 @@ class UserController extends Controller
                 'action' => 'required|string|in:delete,activate,deactivate'
             ]);
 
+            $ids     = $request->ids;
+            $skipped = 0;
+
+            // Super admins are exempt from destructive bulk actions — drop them
+            // from the selection rather than failing the whole batch.
+            if (in_array($request->action, ['delete', 'deactivate'], true)) {
+                $protected = User::whereIn('id', $ids)
+                    ->get()
+                    ->filter(fn ($u) => $this->isSuperAdminRole($u->role))
+                    ->pluck('id')
+                    ->all();
+
+                $skipped = count($protected);
+                $ids     = array_values(array_diff($ids, $protected));
+
+                if (empty($ids)) {
+                    return response()->json([
+                        'message' => 'Super admin accounts cannot be ' .
+                            ($request->action === 'delete' ? 'deleted.' : 'deactivated.')
+                    ], 403);
+                }
+            }
+
             if ($request->action === 'delete') {
 
                 // Soft delete — record who deleted, then move to the deleted portal
-                User::whereIn('id', $request->ids)->update(['deleted_by' => auth()->id()]);
-                User::whereIn('id', $request->ids)->delete();
+                User::whereIn('id', $ids)->update(['deleted_by' => auth()->id()]);
+                User::whereIn('id', $ids)->delete();
 
             } elseif ($request->action === 'activate') {
 
-                User::whereIn('id', $request->ids)->update([
+                User::whereIn('id', $ids)->update([
                     'status' => 'Active'
                 ]);
 
             } elseif ($request->action === 'deactivate') {
 
-                User::whereIn('id', $request->ids)->update([
+                User::whereIn('id', $ids)->update([
                     'status' => 'Inactive'
                 ]);
             }
 
-            AuditLog::logAction('BULK_USER_ACTION', "Performed {$request->action} on " . count($request->ids) . " users text-center");
+            AuditLog::logAction('BULK_USER_ACTION', "Performed {$request->action} on " . count($ids) . " users");
 
             return response()->json([
                 'message' => 'Bulk action completed successfully'
+                    . ($skipped > 0 ? " ({$skipped} super admin account(s) skipped)" : ''),
+                'skipped' => $skipped,
             ]);
 
         } catch (\Exception $e) {

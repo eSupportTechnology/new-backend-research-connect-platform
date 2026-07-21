@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Route;
  * Career / Job Posts Routes
  */
 
-// Public routes
+// Public routes — the static path must come before any /jobs/{id} wildcard
+Route::get('/jobs/filter-options', [JobController::class, 'filterOptions']);
 Route::get('/jobs', [JobController::class, 'index']);
 
 // Protected routes
@@ -15,6 +16,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/jobs', [JobController::class, 'store']);
     Route::post('/jobs/{id}/apply', [JobController::class, 'apply']);
     Route::delete('/jobs/{id}', [JobController::class, 'destroy']);
+
+    // Poster's own posts and the applications they received
+    Route::get('/jobs/my-posted', [JobController::class, 'myPostedJobs']);
+    Route::get('/jobs/{id}/applications', [JobController::class, 'jobApplications']);
+    Route::patch('/job-applications/{id}/status', [JobController::class, 'updateApplicationStatus']);
     
     // Admin only routes
     Route::middleware('role:admin,super_admin,superadmin')->group(function () {
