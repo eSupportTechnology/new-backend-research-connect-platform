@@ -6,6 +6,8 @@ use App\Http\Resources\JobResource;
 use App\Mail\JobApplicationMail;
 use App\Mail\JobPostedMail;
 use App\Models\Career;
+use App\Models\JobApplication;
+use App\Models\UserNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -92,6 +94,20 @@ class JobController extends Controller
             ], 422);
         }
 
+        // An apply link pointing back at this platform sends applicants in a
+        // circle — they land on the posting they came from. Applying here is
+        // what the built-in "Apply with Profile" flow is for.
+        if ($request->filled('apply_link') && $this->isInternalUrl($request->apply_link)) {
+            return response()->json([
+                'success' => false,
+                'errors'  => [
+                    'apply_link' => [
+                        'The application link must point to an external site. Leave it blank to receive applications here instead.',
+                    ],
+                ],
+            ], 422);
+        }
+
         DB::beginTransaction();
 
         try {
@@ -158,14 +174,23 @@ class JobController extends Controller
      */
     public function apply(Request $request, $id)
     {
+        // The profile link is optional — an applicant may prefer to send only a
+        // CV — but an application with neither is not something an employer can act on.
         $validator = Validator::make($request->all(), [
-            'profile_url' => 'required|url',
+            'profile_url' => 'nullable|url',
             'message'     => 'nullable|string|max:2000',
             'cv'          => 'nullable|file|mimes:pdf,doc,docx|max:5120',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        if (!$request->filled('profile_url') && !$request->hasFile('cv')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Add a profile link or attach a CV so the employer can review your application.',
+            ], 422);
         }
 
         try {
@@ -179,25 +204,57 @@ class JobController extends Controller
                 return response()->json(['success' => false, 'message' => 'No contact email available for this job.'], 422);
             }
 
-            // Optional CV upload — stored so it can be attached to the email
-            $cvPath = null;
+            // Optional CV upload — kept on disk so it can be attached to the
+            // email and downloaded later from the poster's dashboard
+            $storedCv = null;
+            $cvPath   = null;
             if ($request->hasFile('cv')) {
-                $stored = $request->file('cv')->store('job_applications', 'public');
-                $cvPath = storage_path('app/public/' . $stored);
+                $storedCv = $request->file('cv')->store('job_applications', 'public');
+                $cvPath   = storage_path('app/public/' . $storedCv);
             }
 
+            // Record the application first — an email hiccup must not lose it
+            $application = JobApplication::create([
+                'career_id'       => $job->id,
+                'applicant_id'    => $applicant->id,
+                'applicant_name'  => trim($applicant->first_name . ' ' . $applicant->last_name),
+                'applicant_email' => $applicant->email,
+                'profile_url'     => $request->profile_url ?: null,
+                'message'         => $request->message ?: null,
+                'cv_path'         => $storedCv,
+            ]);
+
+            // Let the poster know in-app as well as by email
+            UserNotification::create([
+                'user_id' => $job->user_id,
+                'type'    => 'job_application_received',
+                'title'   => 'New Job Application',
+                'message' => "{$application->applicant_name} applied for \"{$job->title}\".",
+                'data'    => [
+                    'career_id'      => $job->id,
+                    'application_id' => $application->id,
+                    'job_title'      => $job->title,
+                ],
+            ]);
+
             // Send the application to the job's contact email only
-            Mail::to($recipient)->send(new JobApplicationMail(
-                job:              $job,
-                applicant:        $applicant,
-                profileUrl:       $request->profile_url,
-                applicantMessage: $request->message ?? '',
-                cvPath:           $cvPath
-            ));
+            try {
+                Mail::to($recipient)->send(new JobApplicationMail(
+                    job:              $job,
+                    applicant:        $applicant,
+                    profileUrl:       $request->profile_url ?: '',
+                    applicantMessage: $request->message ?? '',
+                    cvPath:           $cvPath
+                ));
+            } catch (\Exception $mailEx) {
+                // The application is already saved and visible to the poster
+                Log::error('Job application email failed: ' . $mailEx->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'Your application has been sent successfully!',
+                'data'    => $application,
             ]);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -206,6 +263,107 @@ class JobController extends Controller
             Log::error('Job application email failed: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to send application: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * True when the URL points back at this platform (API or frontend), which
+     * would make an "apply" link lead straight back to the job posting.
+     */
+    private function isInternalUrl(string $url): bool
+    {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        if ($host === '') {
+            return false;
+        }
+
+        $ownHosts = collect([config('app.url'), config('app.frontend_url'), env('FRONTEND_URL')])
+            ->filter()
+            ->map(fn ($u) => strtolower((string) parse_url($u, PHP_URL_HOST)))
+            ->filter()
+            ->unique();
+
+        return $ownHosts->contains($host);
+    }
+
+    /**
+     * Poster: their own job posts, with how many applications each has drawn.
+     */
+    public function myPostedJobs(Request $request)
+    {
+        $jobs = Career::where('user_id', auth()->id())
+            ->withCount([
+                'applications',
+                'applications as new_applications_count' => fn ($q) => $q->where('status', 'new'),
+            ])
+            ->latest()
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $jobs]);
+    }
+
+    /**
+     * Poster: the applications received for one of their job posts.
+     */
+    public function jobApplications($id)
+    {
+        $job = Career::where('user_id', auth()->id())->find($id);
+
+        if (!$job) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Job post not found, or it is not yours.',
+            ], 404);
+        }
+
+        $applications = JobApplication::with('applicant:id,first_name,last_name,email')
+            ->where('career_id', $job->id)
+            ->latest()
+            ->get();
+
+        // Opening the list counts as having seen them
+        JobApplication::where('career_id', $job->id)
+            ->whereNull('viewed_at')
+            ->update(['viewed_at' => now()]);
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'job'          => $job,
+                'applications' => $applications,
+            ],
+        ]);
+    }
+
+    /**
+     * Poster: move an application through their own shortlist.
+     */
+    public function updateApplicationStatus(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:new,reviewed,shortlisted,rejected',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $application = JobApplication::with('career')->find($id);
+
+        if (!$application || $application->career?->user_id !== auth()->id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found, or it is not for one of your job posts.',
+            ], 404);
+        }
+
+        $application->update(['status' => $request->status]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Application status updated.',
+            'data'    => $application->fresh(),
+        ]);
     }
 
     /**

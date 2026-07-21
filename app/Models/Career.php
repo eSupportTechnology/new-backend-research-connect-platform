@@ -34,4 +34,12 @@ class Career extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    /**
+     * Relationship: applications received for this job post.
+     */
+    public function applications()
+    {
+        return $this->hasMany(JobApplication::class);
+    }
 }
