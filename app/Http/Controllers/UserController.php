@@ -17,12 +17,21 @@ class UserController extends Controller
     const RETENTION_DAYS = 30;
 
     /**
-     * Only a super admin may restore or permanently delete accounts.
+     * Only a super admin may delete, restore or permanently delete accounts.
      */
     private function requireSuperAdmin()
     {
-        $role = strtolower((string) auth()->user()?->role);
-        return in_array($role, ['superadmin', 'super_admin'], true);
+        return $this->isSuperAdminRole(auth()->user()?->role);
+    }
+
+    /**
+     * Super admin accounts are protected: they cannot be deactivated or
+     * deleted through user management, so the platform can never be left
+     * without a usable super admin.
+     */
+    private function isSuperAdminRole($role)
+    {
+        return in_array(strtolower((string) $role), ['superadmin', 'super_admin'], true);
     }
 
     /*
@@ -182,9 +191,19 @@ class UserController extends Controller
 
     public function destroy($id)
     {
+        if (!$this->requireSuperAdmin()) {
+            return response()->json(['message' => 'Only a super admin can delete accounts.'], 403);
+        }
+
         try {
 
             $user = User::findOrFail($id);
+
+            if ($this->isSuperAdminRole($user->role)) {
+                return response()->json([
+                    'message' => 'Super admin accounts cannot be deleted.'
+                ], 403);
+            }
 
             // Soft delete only — the account moves to the "Deleted Users" portal
             // and can be restored. Permanent deletion is a separate, time-gated action.
@@ -320,6 +339,12 @@ class UserController extends Controller
 
             $user = User::findOrFail($id);
 
+            if ($this->isSuperAdminRole($user->role)) {
+                return response()->json([
+                    'message' => 'Super admin accounts cannot be deactivated.'
+                ], 403);
+            }
+
             $user->status = $user->status === 'Active' ? 'Inactive' : 'Active';
             $user->save();
 
@@ -355,29 +380,54 @@ class UserController extends Controller
                 'action' => 'required|string|in:delete,activate,deactivate'
             ]);
 
+            $ids     = $request->ids;
+            $skipped = 0;
+
+            // Super admins are exempt from destructive bulk actions — drop them
+            // from the selection rather than failing the whole batch.
+            if (in_array($request->action, ['delete', 'deactivate'], true)) {
+                $protected = User::whereIn('id', $ids)
+                    ->get()
+                    ->filter(fn ($u) => $this->isSuperAdminRole($u->role))
+                    ->pluck('id')
+                    ->all();
+
+                $skipped = count($protected);
+                $ids     = array_values(array_diff($ids, $protected));
+
+                if (empty($ids)) {
+                    return response()->json([
+                        'message' => 'Super admin accounts cannot be ' .
+                            ($request->action === 'delete' ? 'deleted.' : 'deactivated.')
+                    ], 403);
+                }
+            }
+
             if ($request->action === 'delete') {
 
                 // Soft delete — record who deleted, then move to the deleted portal
-                User::whereIn('id', $request->ids)->update(['deleted_by' => auth()->id()]);
-                User::whereIn('id', $request->ids)->delete();
+                User::whereIn('id', $ids)->update(['deleted_by' => auth()->id()]);
+                User::whereIn('id', $ids)->delete();
 
             } elseif ($request->action === 'activate') {
 
-                User::whereIn('id', $request->ids)->update([
+                User::whereIn('id', $ids)->update([
                     'status' => 'Active'
                 ]);
 
             } elseif ($request->action === 'deactivate') {
 
-                User::whereIn('id', $request->ids)->update([
+                User::whereIn('id', $ids)->update([
                     'status' => 'Inactive'
                 ]);
             }
 
-            AuditLog::logAction('BULK_USER_ACTION', "Performed {$request->action} on " . count($request->ids) . " users text-center");
+            AuditLog::logAction('BULK_USER_ACTION', "Performed {$request->action} on " . count($ids) . " users");
 
             return response()->json([
                 'message' => 'Bulk action completed successfully'
+                    . ($skipped > 0 ? " ({$skipped} super admin account(s) skipped)" : ''),
+                'skipped' => $skipped,
             ]);
 
         } catch (\Exception $e) {
