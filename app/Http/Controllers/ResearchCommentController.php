@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\VerifiesStorePurchase;
 use App\Models\Research\Research;
 use App\Models\Research\ResearchComment;
 use App\Models\Research\ResearchCommentLike;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 class ResearchCommentController extends Controller
 {
+    use VerifiesStorePurchase;
+
     /**
      * Get all comments for a research
      */
@@ -83,6 +86,11 @@ class ResearchCommentController extends Controller
                     'success' => false,
                     'message' => 'Research not found',
                 ], 404);
+            }
+
+            // If this research is listed in the store, only buyers may review it
+            if ($denied = $this->denyIfNotPurchaser(Research::class, $researchId)) {
+                return $denied;
             }
 
             // Check if user already commented on this research
