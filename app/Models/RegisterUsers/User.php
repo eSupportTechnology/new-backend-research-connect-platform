@@ -226,10 +226,28 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function canAccess(string $requiredTier): bool
     {
-        $order = ['bronze' => 1, 'silver' => 2, 'gold' => 3];
-        $current = $order[$this->membership_tier ?? 'bronze'] ?? 1;
-        $required = $order[$requiredTier] ?? 1;
+        $order = \App\Services\ResearchAccessService::TIER_ORDER;
+        $current = $order[strtolower($this->membership_tier ?? 'bronze')] ?? 1;
+        $required = $order[strtolower($requiredTier)] ?? 1;
         return $current >= $required;
+    }
+
+    /**
+     * eStudent / School Student account. Content permissions for these accounts
+     * are decided by App\Services\ResearchAccessService — never inline.
+     */
+    public function isSchoolStudent(): bool
+    {
+        return $this->user_type === \App\Services\ResearchAccessService::SCHOOL_STUDENT;
+    }
+
+    /**
+     * Numeric rank of this user's membership tier (bronze 1 → gold 3).
+     */
+    public function tierLevel(): int
+    {
+        $order = \App\Services\ResearchAccessService::TIER_ORDER;
+        return $order[strtolower($this->membership_tier ?? 'bronze')] ?? 1;
     }
 
     public function approvedUploadCount(): int

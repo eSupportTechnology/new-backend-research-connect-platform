@@ -388,6 +388,11 @@ class SellingItemController extends Controller
                 'specifications'   => $request->additionalDetails['specifications'] ?? [],
                 'is_featured'      => $request->additionalDetails['is_featured'] ?? false,
                 'type'             => $request->type ?? 'innovation',
+                // A research paper is a PDF download, never a parcel. Marking it
+                // digital is what stops checkout demanding a shipping address
+                // from the buyer for something that is delivered by link.
+                // Innovations stay physical — a prototype really does ship.
+                'delivery_type'    => $request->sellable_type === 'research' ? 'digital' : 'physical',
                 'status'           => 'active',
                 'listed_at'        => now(),
             ];
@@ -731,8 +736,12 @@ class SellingItemController extends Controller
                 return response()->json(['success' => false, 'code' => 'REQUIREMENT_MISSING_BANK', 'message' => 'The seller has not configured any bank details. Payment cannot be initiated.'], 400);
             }
 
+            // Digital goods (research papers, downloadable files) are delivered
+            // by link, so there is nothing to ship and no address to ask for.
+            $isDigital    = $item->delivery_type === 'digital';
             $buyerAddress = ShippingAddress::where('user_id', $buyer->id)->orderBy('is_default', 'desc')->first();
-            if (!$buyerAddress) {
+
+            if (! $isDigital && ! $buyerAddress) {
                 return response()->json(['success' => false, 'code' => 'REQUIREMENT_MISSING_SHIPPING', 'message' => 'You need to add a shipping address to your profile before you can purchase items.'], 400);
             }
 
@@ -751,7 +760,8 @@ class SellingItemController extends Controller
                 'seller_id'          => $item->user_id,
                 'selling_item_id'    => $item->id,
                 'bank_detail_id'     => $sellerBank->id,
-                'shipping_address_id'=> $buyerAddress->id,
+                // Null on digital orders — there is no delivery to address.
+                'shipping_address_id'=> $buyerAddress?->id,
                 'quantity'           => $request->quantity,
                 'amount'             => $totalAmount,
                 'status'             => 'pending',

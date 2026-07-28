@@ -109,8 +109,9 @@ class ProfileController extends Controller
             $profileData['experiences'] = $profile->experiences;
             $profileData['educations'] = $profile->educations;
 
-            $authUser = auth('sanctum')->user();
-            $hideAdult = $authUser !== null && $authUser->user_type === 'School Student';
+            // eStudent detection lives in ResearchAccessService — never inline.
+            $hideAdult = app(\App\Services\ResearchAccessService::class)
+                ->isSchoolStudent(auth('sanctum')->user());
 
             // Get user's innovations
             $innovations = \App\Models\Innovation\Innovation::where('user_id', $user->id)
@@ -316,21 +317,34 @@ class ProfileController extends Controller
     }
 
     /**
-     * Check if user is eligible to sell (has bank and address)
+     * Check whether the signed-in user may list something for sale.
+     *
+     * Bank details are always required — that is where the payout lands.
+     *
+     * A shipping address is only required for **physical** goods, where it is
+     * the seller's return / pickup address. A seller never receives a parcel,
+     * so for digital products (research papers, files) there is nothing to
+     * ship and nothing to ask for. Pass `?delivery_type=digital` for those.
+     *
+     * The buyer's delivery address is a separate thing entirely and is
+     * collected at checkout — see SellingItemController::initiatePayment.
      */
-    public function getSellingEligibility()
+    public function getSellingEligibility(Request $request)
     {
         $userId = Auth::id();
-        
-        $hasBank = \App\Models\Profile\BankDetail::where('user_id', $userId)->exists();
+
+        $hasBank    = \App\Models\Profile\BankDetail::where('user_id', $userId)->exists();
         $hasAddress = \App\Models\Profile\ShippingAddress::where('user_id', $userId)->exists();
-        
+
+        $isDigital = $request->query('delivery_type') === 'digital';
+
         return response()->json([
             'success' => true,
             'data' => [
-                'has_bank_details' => $hasBank,
-                'has_shipping_address' => $hasAddress,
-                'is_eligible' => $hasBank && $hasAddress
+                'has_bank_details'         => $hasBank,
+                'has_shipping_address'     => $hasAddress,
+                'requires_shipping_address'=> ! $isDigital,
+                'is_eligible'              => $isDigital ? $hasBank : ($hasBank && $hasAddress),
             ]
         ]);
     }

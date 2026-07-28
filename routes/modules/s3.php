@@ -59,7 +59,10 @@ Route::prefix('research')->group(function () {
     Route::get('/', [UploadController::class, 'getResearches']); // /research/ (with trailing slash)
     // ✅ Then wildcard routes
     Route::get('/{id}', [UploadController::class, 'getResearch']);
-    Route::get('/{id}/download', [UploadController::class, 'downloadResearch']);
+    // Membership / eStudent / 18+ rules are enforced by the middleware before
+    // the controller ever sees the request.
+    Route::get('/{id}/download', [UploadController::class, 'downloadResearch'])
+        ->middleware('research.access');
     Route::put('/{id}/status', [UploadController::class, 'updateResearchStatus']);
     Route::post('/bulk-status', [UploadController::class, 'bulkUpdateResearchStatus']);
 });

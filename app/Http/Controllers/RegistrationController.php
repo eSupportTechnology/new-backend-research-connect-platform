@@ -87,7 +87,13 @@ class RegistrationController extends Controller
             'password'        => Hash::make($validated['generalUserDetails']['password']),
             'role'            => 'GENERAL_USER',
             'user_type'       => $request->input('userType'),
-            'membership_tier' => $isStudent ? 'gold' : 'bronze',
+            // Everyone starts at Bronze, School Students included. Their
+            // eStudent benefits are granted by user_type (free + limited
+            // access research regardless of tier), not by handing them a tier
+            // they did not earn — that used to make every paid research paper
+            // free for students. They climb Bronze → Silver → Gold like anyone
+            // else, and buying Gold is what unlocks paid research.
+            'membership_tier' => 'bronze',
         ]);
 
         // School student
@@ -171,7 +177,8 @@ class RegistrationController extends Controller
             'password'        => Hash::make($validated['coreDetails']['password']),
             'role'            => 'BOTH',
             'user_type'       => $request->input('userType'),
-            'membership_tier' => $isStudent ? 'gold' : 'bronze',
+            // Bronze for everyone — see the note on the general-user path above.
+            'membership_tier' => 'bronze',
         ]);
 
         $investor = Investor::create([

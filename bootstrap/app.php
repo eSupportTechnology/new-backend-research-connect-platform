@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role'             => RoleMiddleware::class,
             'student.verified' => \App\Http\Middleware\EnsureStudentVerified::class,
+            'research.access'  => \App\Http\Middleware\EnsureResearchAccess::class,
         ]);
 
         // Block write operations for unverified school students across all API routes
