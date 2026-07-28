@@ -15,6 +15,22 @@ class Research extends Model
 
     protected $table = 'research';
 
+    /** Open to every tier, including Bronze. */
+    public const ACCESS_FREE = 'free';
+
+    /** Silver and above (School Students bypass the tier requirement). */
+    public const ACCESS_LIMITED = 'limited';
+
+    /** Costs the publisher's price. */
+    public const ACCESS_PAID = 'paid';
+
+    /** The only values access_type may hold. */
+    public const ACCESS_TYPES = [
+        self::ACCESS_FREE,
+        self::ACCESS_LIMITED,
+        self::ACCESS_PAID,
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -35,6 +51,7 @@ class Research extends Model
         'extra_people',
         'tags',
         'is_paid',
+        'access_type',
         'is_adult',
         'price',
         'status',
@@ -49,6 +66,7 @@ class Research extends Model
      */
     protected $casts = [
         'is_paid' => 'boolean',
+        'access_type' => 'string',
         'is_adult' => 'boolean',
         'price' => 'decimal:2',
         'views' => 'integer',
@@ -144,7 +162,9 @@ class Research extends Model
     }
 
     /**
-     * Scope a query to filter by free research.
+     * Scope a query to research that costs nothing — FREE *and* LIMITED
+     * ACCESS. This is the price filter behind `?free=1`, not an access-type
+     * filter; use scopeAccessType() when you mean the type specifically.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return \Illuminate\Database\Eloquent\Builder
@@ -163,6 +183,40 @@ class Research extends Model
     public function scopePaid($query)
     {
         return $query->where('is_paid', true);
+    }
+
+    /**
+     * Scope a query to one access type (free | limited | paid).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  string  $type
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeAccessType($query, string $type)
+    {
+        return $query->where('access_type', strtolower($type));
+    }
+
+    /**
+     * Scope a query to research every tier can open, Bronze included.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeOpenAccess($query)
+    {
+        return $query->where('access_type', self::ACCESS_FREE);
+    }
+
+    /**
+     * Scope a query to research that requires Silver or above.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeLimitedAccess($query)
+    {
+        return $query->where('access_type', self::ACCESS_LIMITED);
     }
 
     /**
@@ -340,6 +394,32 @@ class Research extends Model
     }
 
     /**
+     * Normalise access_type and keep the legacy is_paid boolean in step.
+     *
+     * access_type is the source of truth; is_paid is a derived convenience for
+     * the price filters, the marketplace and the admin screens that still read
+     * it. Whichever of the two a caller sets, both end up consistent.
+     */
+    public function normaliseAccessType(): void
+    {
+        $type = strtolower((string) $this->access_type);
+
+        if (! in_array($type, self::ACCESS_TYPES, true)) {
+            // Nothing usable was set — fall back to the is_paid boolean so
+            // older callers that only know about is_paid still work.
+            $type = $this->is_paid ? self::ACCESS_PAID : self::ACCESS_LIMITED;
+        }
+
+        $this->access_type = $type;
+        $this->is_paid     = $type === self::ACCESS_PAID;
+
+        // A price only means anything on a PAID paper.
+        if ($type !== self::ACCESS_PAID) {
+            $this->price = null;
+        }
+    }
+
+    /**
      * Boot the model.
      */
     protected static function boot()
@@ -359,6 +439,12 @@ class Research extends Model
             if (is_null($research->is_paid)) {
                 $research->is_paid = false;
             }
+        });
+
+        // Runs on create *and* update, so access_type and is_paid can never
+        // drift apart no matter which one a controller touched.
+        static::saving(function ($research) {
+            $research->normaliseAccessType();
         });
     }
 }

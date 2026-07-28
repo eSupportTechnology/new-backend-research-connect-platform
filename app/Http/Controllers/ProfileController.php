@@ -109,8 +109,9 @@ class ProfileController extends Controller
             $profileData['experiences'] = $profile->experiences;
             $profileData['educations'] = $profile->educations;
 
-            $authUser = auth('sanctum')->user();
-            $hideAdult = $authUser !== null && $authUser->user_type === 'School Student';
+            // eStudent detection lives in ResearchAccessService — never inline.
+            $hideAdult = app(\App\Services\ResearchAccessService::class)
+                ->isSchoolStudent(auth('sanctum')->user());
 
             // Get user's innovations
             $innovations = \App\Models\Innovation\Innovation::where('user_id', $user->id)

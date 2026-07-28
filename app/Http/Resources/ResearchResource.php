@@ -2,12 +2,18 @@
 
 namespace App\Http\Resources;
 
+use App\Services\ResearchAccessService;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ResearchResource extends JsonResource
 {
     public function toArray($request)
     {
+        // The server's access decision travels with every paper so the UI never
+        // has to re-derive the rules — see useResearchAccess.js on the frontend.
+        $decision = app(ResearchAccessService::class)
+            ->decide(auth('sanctum')->user(), $this->resource);
+
         return [
             // Basic info
             'id'          => $this->id,
@@ -22,10 +28,14 @@ class ResearchResource extends JsonResource
             'research_level' => $this->research_level,
 
             // Content flags
-            'is_adult' => $this->is_adult,
-            'is_paid'  => $this->is_paid,
-            'price'    => $this->when($this->is_paid, $this->price),
-            'status'   => $this->status,
+            'is_adult'    => $this->is_adult,
+            'is_paid'     => $this->is_paid,
+            'access_type' => $this->access_type,
+            'price'       => $this->when($this->is_paid, $this->price),
+            'status'      => $this->status,
+
+            // Access decision (single source of truth — App\Services\ResearchAccessService)
+            'access' => $decision->toArray(),
 
             // Tags
             'tags'       => $this->tags_array,

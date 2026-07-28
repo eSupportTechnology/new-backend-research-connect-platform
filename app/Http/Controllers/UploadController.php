@@ -9,6 +9,7 @@ use App\Models\Innovation\Innovation;
 use App\Models\Research\ResearchViews;
 use App\Models\Profile\BankDetail;
 use App\Models\Profile\ShippingAddress;
+use App\Services\ResearchAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -18,14 +19,54 @@ use Illuminate\Support\Facades\Log;
 
 class UploadController extends Controller
 {
+    public function __construct(private ResearchAccessService $access)
+    {
+    }
+
     /**
      * Whether the authenticated user is a School Student account and
      * should be blocked from viewing 18+ (adult) content.
+     *
+     * Thin wrapper over ResearchAccessService so listing queries keep reading
+     * naturally — the rule itself lives in the service.
      */
     private function isSchoolStudent(): bool
     {
-        $user = auth('sanctum')->user();
-        return $user !== null && $user->user_type === 'School Student';
+        return $this->access->isSchoolStudent(auth('sanctum')->user());
+    }
+
+    /**
+     * Resolve the research access type (free | limited | paid) from a request.
+     *
+     * The upload form sends `access_type` now, but older clients still post
+     * `price=yes|no` (upload) or `is_paid=1|0` (edit). Both are honoured so a
+     * stale bundle cannot silently create a paper with the wrong access type.
+     *
+     * @param  string|null  $current  the paper's existing type, for partial updates
+     */
+    private function resolveAccessType(Request $request, ?string $current = null): string
+    {
+        $explicit = strtolower((string) $request->input('access_type'));
+
+        if (in_array($explicit, Research::ACCESS_TYPES, true)) {
+            return $explicit;
+        }
+
+        // Legacy: the upload form's yes/no price toggle.
+        if (in_array($request->input('price'), ['yes', 'no'], true)) {
+            return $request->input('price') === 'yes'
+                ? Research::ACCESS_PAID
+                : Research::ACCESS_LIMITED;
+        }
+
+        // Legacy: the edit form's is_paid boolean.
+        if ($request->has('is_paid')) {
+            return filter_var($request->input('is_paid'), FILTER_VALIDATE_BOOLEAN)
+                ? Research::ACCESS_PAID
+                : Research::ACCESS_LIMITED;
+        }
+
+        return $current ?? Research::ACCESS_LIMITED;
     }
 
     /**
@@ -53,8 +94,10 @@ class UploadController extends Controller
             'extra_people'   => 'nullable|string',
             'tags'           => 'nullable|string',
             'is_adult'       => 'nullable|in:0,1,true,false',
+            'access_type'    => 'nullable|in:free,limited,paid',
             'price'          => 'required|in:yes,no',
-            'priceAmount'    => 'required_if:price,yes|nullable|numeric|min:0',
+            // A PAID paper with no price is unsellable — reject it at the door.
+            'priceAmount'    => 'required_if:price,yes|required_if:access_type,paid|nullable|numeric|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -114,7 +157,8 @@ class UploadController extends Controller
             }
 
             // Determine price details
-            $isPaid = $request->price === 'yes';
+            $accessType  = $this->resolveAccessType($request);
+            $isPaid      = $accessType === Research::ACCESS_PAID;
             $priceAmount = $isPaid ? $request->priceAmount : null;
 
             // Create research record
@@ -134,6 +178,7 @@ class UploadController extends Controller
                 'tags'           => $request->tags,
                 'is_adult'       => filter_var($request->is_adult, FILTER_VALIDATE_BOOLEAN),
                 'is_paid'        => $isPaid,
+                'access_type'    => $accessType,
                 'price'          => $priceAmount,
                 'status'         => 'pending',
                 'views'          => 0,
@@ -441,6 +486,11 @@ class UploadController extends Controller
             $query->paid();
         }
 
+        // Filter by the three-way access type (free | limited | paid).
+        if (in_array($request->input('access_type'), Research::ACCESS_TYPES, true)) {
+            $query->accessType($request->input('access_type'));
+        }
+
         // Sorting
         $sortBy = $request->get('sort_by', 'latest');
         switch ($sortBy) {
@@ -570,6 +620,11 @@ class UploadController extends Controller
             $query->paid();
         }
 
+        // Filter by the three-way access type (free | limited | paid).
+        if (in_array($request->input('access_type'), Research::ACCESS_TYPES, true)) {
+            $query->accessType($request->input('access_type'));
+        }
+
         // Admin mode: show_all=true bypasses the active-only filter
         if ($request->has('show_all') && $request->show_all === 'true') {
             if ($request->has('status')) {
@@ -649,47 +704,38 @@ class UploadController extends Controller
     {
         try {
             $research = Research::with('userProfile')->findOrFail($id);
+            $user     = auth('sanctum')->user();
 
-            if ($research->is_adult && $this->isSchoolStudent()) {
-                return response()->json([
-                    'success' => false,
-                    'code' => 'AGE_RESTRICTED',
-                    'message' => 'This research paper is marked as 18+ and is not available on School Student accounts.'
-                ], 403);
+            // Single centralised decision — no permission logic in this method.
+            $decision = $this->access->decide($user, $research);
+
+            // 18+ on an eStudent account hides the paper entirely.
+            if ($decision->code === \App\Services\ResearchAccessDecision::AGE_RESTRICTED) {
+                return response()->json($decision->toErrorResponse(), $decision->httpStatus());
             }
 
-            $userId = auth('sanctum')->id();
-
             // If logged in → track view per user
-            if ($userId) {
+            if ($user) {
                 $existingView = ResearchViews::where('research_id', $research->id)
-                    ->where('user_id', $userId)
+                    ->where('user_id', $user->id)
                     ->first();
 
                 if (!$existingView) {
                     ResearchViews::create([
                         'research_id' => $research->id,
-                        'user_id' => $userId,
+                        'user_id' => $user->id,
                     ]);
 
                     $research->incrementViews();
                 }
             }
 
-            // Two independent access paths:
-            //  1) Membership tier (upgrade → view as a benefit)
-            //  2) Individual purchase (any registered user, membership unchanged)
-            $sellingItem = \App\Models\Innovation\SellingItem::where('sellable_type', \App\Models\Research\Research::class)
-                ->where('sellable_id', $research->id)
-                ->first();
-
-            $research->selling_item_id = $sellingItem?->id;
-            $research->has_purchased   = ($userId && $sellingItem)
-                ? \App\Models\Order::where('buyer_id', $userId)
-                    ->where('selling_item_id', $sellingItem->id)
-                    ->whereIn('status', ['paid', 'cod_pending', 'completed'])
-                    ->exists()
-                : false;
+            // The frontend renders from this payload instead of re-deriving the
+            // rules; `selling_item_id` / `has_purchased` are kept for callers
+            // written against the previous shape.
+            $research->access          = $decision->toArray();
+            $research->selling_item_id = $decision->sellingItemId;
+            $research->has_purchased   = $decision->hasPurchased;
 
             return response()->json([
                 'success' => true,
@@ -758,26 +804,23 @@ class UploadController extends Controller
     {
         try {
             $research = Research::with('userProfile')->findOrFail($id);
+            $user     = auth('sanctum')->user();
 
-            if ($research->is_adult && $this->isSchoolStudent()) {
-                return response()->json([
-                    'success' => false,
-                    'code' => 'AGE_RESTRICTED',
-                    'message' => 'This research paper is marked as 18+ and is not available on School Student accounts.'
-                ], 403);
+            $decision = $this->access->decide($user, $research);
+
+            if ($decision->code === \App\Services\ResearchAccessDecision::AGE_RESTRICTED) {
+                return response()->json($decision->toErrorResponse(), $decision->httpStatus());
             }
 
-            $userId = auth('sanctum')->id();
-
-            if ($userId) {
+            if ($user) {
                 $existingView = ResearchViews::where('research_id', $research->id)
-                    ->where('user_id', $userId)
+                    ->where('user_id', $user->id)
                     ->first();
 
                 if (!$existingView) {
                     ResearchViews::create([
                         'research_id' => $research->id,
-                        'user_id' => $userId,
+                        'user_id' => $user->id,
                     ]);
                     $research->incrementViews();
                 }
@@ -786,6 +829,10 @@ class UploadController extends Controller
                 // For now, always increment for guests
                 $research->incrementViews();
             }
+
+            $research->access          = $decision->toArray();
+            $research->selling_item_id = $decision->sellingItemId;
+            $research->has_purchased   = $decision->hasPurchased;
 
             return response()->json([
                 'success' => true,
@@ -929,13 +976,17 @@ class UploadController extends Controller
     }
 
     /**
-     * Update research price
+     * Update research access type and price.
+     *
+     * Accepts `access_type` (free | limited | paid); `is_paid` is still
+     * honoured for older clients and maps to paid | limited.
      */
     public function updateResearchPrice(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'is_paid' => 'required|boolean',
-            'price' => 'required_if:is_paid,true|nullable|numeric|min:0'
+            'access_type' => 'nullable|in:free,limited,paid',
+            'is_paid'     => 'required_without:access_type|nullable|boolean',
+            'price'       => 'required_if:is_paid,true|required_if:access_type,paid|nullable|numeric|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -946,8 +997,11 @@ class UploadController extends Controller
             ], 422);
         }
 
+        $accessType = $this->resolveAccessType($request);
+        $isPaid     = $accessType === Research::ACCESS_PAID;
+
         // Requirement Check for Paid Content
-        if ($request->is_paid) {
+        if ($isPaid) {
             $hasBank = BankDetail::where('user_id', auth()->id())->exists();
             $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
 
@@ -967,13 +1021,14 @@ class UploadController extends Controller
         try {
             $research = Research::where('user_id', auth()->id())->findOrFail($id);
 
-            $research->is_paid = $request->is_paid;
-            $research->price = $request->is_paid ? $request->price : null;
+            $research->access_type = $accessType;
+            $research->is_paid     = $isPaid;
+            $research->price       = $isPaid ? $request->price : null;
             $research->save();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Research price updated successfully',
+                'message' => 'Research access settings updated successfully',
                 'data' => $research
             ]);
 
@@ -985,54 +1040,42 @@ class UploadController extends Controller
         }
     }
     /**
-     * Download research document
+     * Issue a temporary link to the research PDF.
+     *
+     * Serves both reading online and downloading — `?mode=download` asks for the
+     * download permission specifically, anything else is treated as a read.
      */
-    public function downloadResearch($id)
+    public function downloadResearch(Request $request, $id)
     {
         try {
             $research = Research::findOrFail($id);
 
-            // ── Server-side access gate. Two independent paths grant access:
-            //    (1) membership tier (paid → Gold, free → Silver+)
-            //    (2) individual purchase of this paper (any registered user)
-            //    The owner always has access. ───────────────────────────────────
-            $user    = auth('sanctum')->user();
-            $isOwner = $user && $user->id === $research->user_id;
+            // ── Server-side access gate. Enforced by ResearchAccessService so a
+            //    direct API call can never bypass what the UI hides. The
+            //    `research.access` middleware already evaluated this route;
+            //    re-using its decision keeps it to one evaluation while staying
+            //    safe if the middleware is ever detached. ────────────────────
+            $decision = $request->attributes->get('research_access')
+                ?? $this->access->decide(auth('sanctum')->user(), $research);
 
-            if (!$isOwner) {
-                $order = ['bronze' => 1, 'silver' => 2, 'gold' => 3];
-                $level = $user ? ($order[strtolower($user->membership_tier ?? 'bronze')] ?? 1) : 0;
-
-                // Path 1 — membership tier: paid research → Gold; free → Silver+.
-                $tierOk = $level >= ($research->is_paid ? 3 : 2);
-
-                // Path 2 — individual purchase (paid research sold via marketplace).
-                $purchased = false;
-                if (!$tierOk && $user && $research->is_paid) {
-                    $sellingItem = \App\Models\Innovation\SellingItem::where('sellable_type', \App\Models\Research\Research::class)
-                        ->where('sellable_id', $research->id)
-                        ->first();
-                    if ($sellingItem) {
-                        $purchased = \App\Models\Order::where('buyer_id', $user->id)
-                            ->where('selling_item_id', $sellingItem->id)
-                            ->whereIn('status', ['paid', 'cod_pending', 'completed'])
-                            ->exists();
-                    }
-                }
-
-                if (!$tierOk && !$purchased) {
-                    return response()->json([
-                        'success' => false,
-                        'code'    => 'UPGRADE_OR_PURCHASE_REQUIRED',
-                        'message' => $research->is_paid
-                            ? 'Upgrade your membership or purchase this research to view it.'
-                            : 'Upgrade to Silver membership or higher to view this research.',
-                    ], 403);
-                }
+            if ($decision->denied()) {
+                return response()->json($decision->toErrorResponse(), $decision->httpStatus());
             }
 
-            // Increment downloads
-            $research->incrementDownloads();
+            $isDownload = $request->query('mode') === 'download';
+
+            if ($isDownload && !$decision->canDownload) {
+                return response()->json([
+                    'success' => false,
+                    'code'    => \App\Services\ResearchAccessDecision::DOWNLOAD_DISABLED,
+                    'message' => 'Downloading is not enabled for this research paper.',
+                ], 403);
+            }
+
+            // Only a real download bumps the counter — opening the reader does not.
+            if ($isDownload) {
+                $research->incrementDownloads();
+            }
 
             // Generate temporary URL for download
             $url = $this->getPresignedUrlForFile($research->document_url, 30);
@@ -1435,14 +1478,16 @@ class UploadController extends Controller
             'research_level' => 'required|string|max:100',
             'tags'           => 'nullable|string',
             'is_adult'       => 'nullable|in:0,1,true,false',
+            'access_type'    => 'nullable|in:free,limited,paid',
             'is_paid'        => 'nullable',
-            'price'          => 'nullable|numeric|min:0',
+            'price'          => 'nullable|numeric|min:0|required_if:access_type,paid',
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $isPaid = filter_var($request->is_paid, FILTER_VALIDATE_BOOLEAN);
+        $accessType = $this->resolveAccessType($request, $research->access_type);
+        $isPaid     = $accessType === Research::ACCESS_PAID;
         $data = [
             'title'          => $request->title,
             'abstract'       => $request->abstract,
@@ -1453,6 +1498,7 @@ class UploadController extends Controller
             'tags'           => $request->tags,
             'is_adult'       => filter_var($request->is_adult, FILTER_VALIDATE_BOOLEAN),
             'is_paid'        => $isPaid,
+            'access_type'    => $accessType,
             'price'          => $isPaid ? $request->price : null,
             'status'         => 'pending',
         ];
