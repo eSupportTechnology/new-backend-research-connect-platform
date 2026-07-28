@@ -258,6 +258,32 @@ class ResearchAccessServiceTest extends TestCase
         $this->assertTrue($decision->hasPurchased);
     }
 
+    public function test_an_unlisted_paid_paper_still_offers_the_membership_route(): void
+    {
+        // No marketplace listing, so there is nothing to buy — but a Gold
+        // membership reads paid research, so that path is still open.
+        config(['research.gold_unlocks_paid' => true]);
+
+        $decision = $this->access->decide($this->user('bronze'), $this->research(Research::ACCESS_PAID));
+
+        $this->assertFalse($decision->canView);
+        $this->assertSame(Code::UPGRADE_REQUIRED, $decision->code);
+        $this->assertSame(Code::ACTION_UPGRADE, $decision->actionRequired);
+        $this->assertSame('gold', $decision->requiredTier);
+    }
+
+    public function test_an_unlisted_paid_paper_is_a_dead_end_for_school_students(): void
+    {
+        // eStudents get no membership upsell, so with no listing there is
+        // genuinely nothing they can do.
+        config(['research.gold_unlocks_paid' => true]);
+
+        $decision = $this->access->decide($this->student(), $this->research(Research::ACCESS_PAID));
+
+        $this->assertSame(Code::NOT_PURCHASABLE, $decision->code);
+        $this->assertSame(Code::ACTION_CONTACT_PUBLISHER, $decision->actionRequired);
+    }
+
     public function test_a_paid_paper_the_publisher_never_listed_offers_no_broken_checkout(): void
     {
         config(['research.gold_unlocks_paid' => false]);

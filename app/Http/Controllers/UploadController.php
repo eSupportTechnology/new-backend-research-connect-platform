@@ -36,6 +36,33 @@ class UploadController extends Controller
     }
 
     /**
+     * Gate for putting a price on research or an innovation video.
+     *
+     * Both are digital goods: the publisher is paid out to a bank account and
+     * never ships anything, so bank details are the only thing needed here. A
+     * shipping address belongs to the *buyer* and is collected at checkout —
+     * asking the publisher for one was asking the wrong person for a field
+     * that a PDF download will never use.
+     *
+     * @return \Illuminate\Http\JsonResponse|null  a 400 response, or null to proceed
+     */
+    private function requirePayoutDetails(): ?\Illuminate\Http\JsonResponse
+    {
+        if (BankDetail::where('user_id', auth()->id())->exists()) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'code'    => 'REQUIREMENT_MISSING',
+            'message' => 'You must add your bank details before selling content — that is where your payouts are sent.',
+            'requirements' => [
+                'bank_details' => false,
+            ],
+        ], 400);
+    }
+
+    /**
      * Resolve the research access type (free | limited | paid) from a request.
      *
      * The upload form sends `access_type` now, but older clients still post
@@ -109,19 +136,8 @@ class UploadController extends Controller
 
         // Requirement Check for Paid Content
         if ($request->price === 'yes') {
-            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
-            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
-
-            if (!$hasBank || !$hasAddress) {
-                return response()->json([
-                    'success' => false,
-                    'code' => 'REQUIREMENT_MISSING',
-                    'message' => 'You must configure your bank details and shipping address in your profile before uploading paid content.',
-                    'requirements' => [
-                        'bank_details' => $hasBank,
-                        'shipping_address' => $hasAddress
-                    ]
-                ], 400);
+            if ($blocked = $this->requirePayoutDetails()) {
+                return $blocked;
             }
         }
 
@@ -289,19 +305,8 @@ class UploadController extends Controller
 
         // Requirement Check for Paid Content
         if ($request->price === 'yes') {
-            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
-            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
-
-            if (!$hasBank || !$hasAddress) {
-                return response()->json([
-                    'success' => false,
-                    'code' => 'REQUIREMENT_MISSING',
-                    'message' => 'You must configure your bank details and shipping address in your profile before uploading paid content.',
-                    'requirements' => [
-                        'bank_details' => $hasBank,
-                        'shipping_address' => $hasAddress
-                    ]
-                ], 400);
+            if ($blocked = $this->requirePayoutDetails()) {
+                return $blocked;
             }
         }
 
@@ -938,19 +943,8 @@ class UploadController extends Controller
 
         // Requirement Check for Paid Content
         if ($request->is_paid) {
-            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
-            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
-
-            if (!$hasBank || !$hasAddress) {
-                return response()->json([
-                    'success' => false,
-                    'code' => 'REQUIREMENT_MISSING',
-                    'message' => 'You must configure your bank details and shipping address in your profile before enabling paid access.',
-                    'requirements' => [
-                        'bank_details' => $hasBank,
-                        'shipping_address' => $hasAddress
-                    ]
-                ], 400);
+            if ($blocked = $this->requirePayoutDetails()) {
+                return $blocked;
             }
         }
 
@@ -1002,19 +996,8 @@ class UploadController extends Controller
 
         // Requirement Check for Paid Content
         if ($isPaid) {
-            $hasBank = BankDetail::where('user_id', auth()->id())->exists();
-            $hasAddress = ShippingAddress::where('user_id', auth()->id())->exists();
-
-            if (!$hasBank || !$hasAddress) {
-                return response()->json([
-                    'success' => false,
-                    'code' => 'REQUIREMENT_MISSING',
-                    'message' => 'You must configure your bank details and shipping address in your profile before enabling paid access.',
-                    'requirements' => [
-                        'bank_details' => $hasBank,
-                        'shipping_address' => $hasAddress
-                    ]
-                ], 400);
+            if ($blocked = $this->requirePayoutDetails()) {
+                return $blocked;
             }
         }
 

@@ -246,9 +246,14 @@ class ResearchAccessService
             );
         }
 
-        // Priced, but the publisher never listed it on the marketplace — there
-        // is no checkout to send the user to.
-        if ($sellingItemId === null) {
+        // Two possible ways in. Buying needs a marketplace listing to point at;
+        // upgrading needs the Gold benefit to be switched on, and is never
+        // offered to eStudents (no membership package would help them).
+        $canBuy     = $sellingItemId !== null;
+        $canUpgrade = $goldUnlocks && ! $isSchoolStudent;
+
+        // Priced, unlisted, and no membership route — nothing the reader can do.
+        if (! $canBuy && ! $canUpgrade) {
             return new ResearchAccessDecision(
                 canView:         false,
                 canDownload:     false,
@@ -257,28 +262,42 @@ class ResearchAccessService
                 code:            ResearchAccessDecision::NOT_PURCHASABLE,
                 canPreview:      true,
                 accessType:      $accessType,
-                requiredTier:    $goldUnlocks ? self::TIER_GOLD : null,
+                requiredTier:    null,
                 price:           $price,
                 sellingItemId:   null,
                 isSchoolStudent: $isSchoolStudent,
             );
         }
 
+        [$message, $action, $code] = match (true) {
+            $canBuy && $canUpgrade => [
+                sprintf('Purchase this research for LKR %s, or upgrade to the Gold package.', number_format($price, 2)),
+                ResearchAccessDecision::ACTION_UPGRADE_OR_PURCHASE,
+                ResearchAccessDecision::UPGRADE_OR_PURCHASE_REQUIRED,
+            ],
+            $canBuy => [
+                sprintf('Purchase this research for LKR %s to read and download it.', number_format($price, 2)),
+                ResearchAccessDecision::ACTION_PURCHASE,
+                ResearchAccessDecision::PAYMENT_REQUIRED,
+            ],
+            // Listed nowhere, but Gold members read paid research — so the
+            // membership is still a real way in.
+            default => [
+                'Upgrade to the Gold package to read this research.',
+                ResearchAccessDecision::ACTION_UPGRADE,
+                ResearchAccessDecision::UPGRADE_REQUIRED,
+            ],
+        };
+
         return new ResearchAccessDecision(
             canView:         false,
             canDownload:     false,
-            message:         $goldUnlocks && ! $isSchoolStudent
-                ? sprintf('Purchase this research for LKR %s, or upgrade to the Gold package.', number_format($price, 2))
-                : sprintf('Purchase this research for LKR %s to read and download it.', number_format($price, 2)),
-            actionRequired:  $goldUnlocks && ! $isSchoolStudent
-                ? ResearchAccessDecision::ACTION_UPGRADE_OR_PURCHASE
-                : ResearchAccessDecision::ACTION_PURCHASE,
-            code:            $goldUnlocks && ! $isSchoolStudent
-                ? ResearchAccessDecision::UPGRADE_OR_PURCHASE_REQUIRED
-                : ResearchAccessDecision::PAYMENT_REQUIRED,
+            message:         $message,
+            actionRequired:  $action,
+            code:            $code,
             canPreview:      true,
             accessType:      $accessType,
-            requiredTier:    $goldUnlocks && ! $isSchoolStudent ? self::TIER_GOLD : null,
+            requiredTier:    $canUpgrade ? self::TIER_GOLD : null,
             price:           $price,
             sellingItemId:   $sellingItemId,
             isSchoolStudent: $isSchoolStudent,
