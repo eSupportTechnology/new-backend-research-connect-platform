@@ -214,6 +214,11 @@ class ResearchAccessService
      * PAID research — the publisher's price, paid per paper. Membership tier
      * does not unlock it unless config('research.gold_unlocks_paid') is on, in
      * which case Gold members read it as a membership benefit.
+     *
+     * eStudents are treated no differently here. Their exemption covers LIMITED
+     * ACCESS only; for paid research they either buy the paper or work their
+     * way up to Gold like everybody else. That relies on School Students
+     * starting at Bronze — see RegistrationController.
      */
     private function decidePaid(
         User $user,
@@ -247,10 +252,12 @@ class ResearchAccessService
         }
 
         // Two possible ways in. Buying needs a marketplace listing to point at;
-        // upgrading needs the Gold benefit to be switched on, and is never
-        // offered to eStudents (no membership package would help them).
+        // upgrading needs the Gold benefit to be switched on.
+        //
+        // eStudents get the Gold route too. Their exemption covers LIMITED
+        // ACCESS research only — PAID research is never free for them.
         $canBuy     = $sellingItemId !== null;
-        $canUpgrade = $goldUnlocks && ! $isSchoolStudent;
+        $canUpgrade = $goldUnlocks;
 
         // Priced, unlisted, and no membership route — nothing the reader can do.
         if (! $canBuy && ! $canUpgrade) {

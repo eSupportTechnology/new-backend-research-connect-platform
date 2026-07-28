@@ -195,15 +195,53 @@ class ResearchAccessServiceTest extends TestCase
 
     public function test_school_student_must_pay_for_paid_research(): void
     {
+        config(['research.gold_unlocks_paid' => true]);
+
         $research = $this->research(Research::ACCESS_PAID);
         $this->listOnMarketplace($research);
 
+        // A School Student starts at Bronze like everyone else, so paid
+        // research is closed to them until they buy the paper or reach Gold.
         $decision = $this->access->decide($this->student(), $research);
 
         $this->assertFalse($decision->canView);
-        // eStudents have no membership upsell — purchase is the only path.
-        $this->assertSame(Code::ACTION_PURCHASE, $decision->actionRequired);
-        $this->assertNull($decision->requiredTier);
+        $this->assertSame(Code::ACTION_UPGRADE_OR_PURCHASE, $decision->actionRequired);
+        $this->assertSame('gold', $decision->requiredTier);
+    }
+
+    /**
+     * School Students used to be handed Gold at registration, which silently
+     * made every paid paper free for them. They now start at Bronze, so a Gold
+     * eStudent is one who actually bought or earned it — and the benefit
+     * applies exactly as it does for anyone else.
+     */
+    public function test_a_school_student_who_reaches_gold_reads_paid_research(): void
+    {
+        config(['research.gold_unlocks_paid' => true]);
+
+        $research = $this->research(Research::ACCESS_PAID);
+        $this->listOnMarketplace($research);
+
+        $this->assertFullAccess($this->access->decide($this->student('gold'), $research));
+    }
+
+    public function test_a_bronze_school_student_reads_paid_research_after_buying_it(): void
+    {
+        $buyer    = $this->student('bronze');
+        $research = $this->research(Research::ACCESS_PAID);
+        $item     = $this->listOnMarketplace($research);
+
+        Order::create([
+            'order_id_string' => 'ORD-TEST-2',
+            'buyer_id'        => $buyer->id,
+            'seller_id'       => $research->user_id,
+            'selling_item_id' => $item->id,
+            'quantity'        => 1,
+            'amount'          => 1000,
+            'status'          => 'paid',
+        ]);
+
+        $this->assertFullAccess($this->access->decide($buyer->fresh(), $research));
     }
 
     public function test_gold_opens_paid_research_when_the_membership_benefit_is_enabled(): void
@@ -272,16 +310,15 @@ class ResearchAccessServiceTest extends TestCase
         $this->assertSame('gold', $decision->requiredTier);
     }
 
-    public function test_an_unlisted_paid_paper_is_a_dead_end_for_school_students(): void
+    public function test_an_unlisted_paid_paper_offers_school_students_the_gold_route(): void
     {
-        // eStudents get no membership upsell, so with no listing there is
-        // genuinely nothing they can do.
         config(['research.gold_unlocks_paid' => true]);
 
         $decision = $this->access->decide($this->student(), $this->research(Research::ACCESS_PAID));
 
-        $this->assertSame(Code::NOT_PURCHASABLE, $decision->code);
-        $this->assertSame(Code::ACTION_CONTACT_PUBLISHER, $decision->actionRequired);
+        $this->assertFalse($decision->canView);
+        $this->assertSame(Code::UPGRADE_REQUIRED, $decision->code);
+        $this->assertSame('gold', $decision->requiredTier);
     }
 
     public function test_a_paid_paper_the_publisher_never_listed_offers_no_broken_checkout(): void
