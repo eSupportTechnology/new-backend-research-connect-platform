@@ -18,8 +18,6 @@ return new class extends Migration
             $table->string('payment_id')->nullable()->after('payment_status');
             $table->decimal('price', 10, 2)->nullable()->after('payment_id');
             $table->text('rejection_reason')->nullable()->after('price');
-
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
@@ -29,7 +27,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('advertisements', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
             $table->dropColumn(['user_id', 'status', 'payment_status', 'payment_id', 'price', 'rejection_reason']);
         });
     }
