@@ -13,7 +13,10 @@ return new class extends Migration
     {
         Schema::create('community_comments', function (Blueprint $col) {
             $col->id();
-            $col->foreignId('user_id')->constrained()->onDelete('cascade');
+            // No FK yet: users.id is a UUID, so this bigint column can't
+            // reference it directly. 2026_04_18_082754_fix_community_tables_user_id_type
+            // drops and recreates it as a UUID with the correct FK.
+            $col->unsignedBigInteger('user_id');
             $col->foreignId('post_id')->constrained('community_posts')->onDelete('cascade');
             $col->text('content');
             $col->timestamps();
