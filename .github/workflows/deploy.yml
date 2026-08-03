@@ -1,0 +1,40 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 13.140.160.65
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Fail loudly — a failed git pull or deploy step must fail this
+            # step, not silently leave the server on stale code while the
+            # workflow reports green.
+            set -e
+
+            # git pull auth uses the VPS's own SSH deploy key (see
+            # ~/.ssh/config "Host github.com-research-backend" + repo
+            # remote) — no PAT/credential helper needed here.
+            REPO_DIR="/var/www/research-backend"
+            git -C "$REPO_DIR" checkout -- .
+            git -C "$REPO_DIR" pull origin main
+
+            cd "$REPO_DIR"
+            COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            chown -R www-data:www-data "$REPO_DIR/storage" "$REPO_DIR/bootstrap/cache"
+
+            systemctl restart research-backend-queue
+            systemctl reload php8.4-fpm
